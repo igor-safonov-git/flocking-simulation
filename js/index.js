@@ -29,8 +29,8 @@ const perceptionRadius = 40;
 const maxForce = 0.3;
 const maxSpeed = 5;
 
-let alignSlider, cohesionSlider, separationSlider, countSlider;
-let alignValue, cohesionValue, separationValue, countValue;
+let alignSlider, cohesionSlider, separationSlider;
+let alignValue, cohesionValue, separationValue;
 
 // Add mouse position tracking
 const mouse = vec2.create();
@@ -98,10 +98,6 @@ accCheckbox.changed(() => ACCURATE = accCheckbox.checked());
 
 document.body.appendChild(document.createElement('br'));
 
-createDiv('Agent count:', 'sliderLabel agent');
-countSlider = createSlider(100, maxCount, count, 100, 'slider');
-countSlider.oninput = () => dispaySliderValue(countSlider, countValue);
-countValue = createDiv(count, 'sliderValue');
 // UI - end ==========
 
 // Add mouse move listener
@@ -124,8 +120,6 @@ function dispaySliderValue(slider, val) {
 	aSliderValue = parseFloat(alignSlider.value);
 	sSliderValue = parseFloat(separationSlider.value);
 	cSliderValue = parseFloat(cohesionSlider.value);
-
-	updateCount(parseFloat(countSlider.value));
 }
 
 function updateCount(c) {
