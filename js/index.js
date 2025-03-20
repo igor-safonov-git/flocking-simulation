@@ -9,7 +9,7 @@
  */
 
 // Global variables - START ====
-let DEBUG = true;
+let DEBUG = false;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
 const width = window.innerWidth;
@@ -19,23 +19,23 @@ const height1 = 0;
 const flock = [];
 const flockPool = [];
 // Agent count
-let count = 1800;
-const maxCount = 3000;
+let count = 2500;
+const maxCount = 10000;
 // Maximum number which is used for one agent to steer to.
-const maxFlockCount = 150;
+const maxFlockCount = 100;
 
 // Also good for speed up things, if we reduce the radius
-const perceptionRadius = 40;
-const maxForce = 0.3;
-const maxSpeed = 3;
+const perceptionRadius = 80;
+const maxForce = 0.2;
+const maxSpeed = 4;
 
 let alignSlider, cohesionSlider, separationSlider;
 let alignValue, cohesionValue, separationValue;
 
 // Add mouse position tracking
 const mouse = vec2.create();
-const mouseRadius = 150;
-const mouseForce = 4;
+const mouseRadius = 100;
+const mouseForce = 2000;
 let isMouseInCanvas = false;
 
 /**
