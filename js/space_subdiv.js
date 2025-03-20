@@ -21,6 +21,10 @@ class SubDiv {
 		const col = Math.floor(x * this.bucketSizeInv);
 		const row = Math.floor(y * this.bucketSizeInv);
 
+		if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) {
+			return;
+		}
+
 		if (item.bucketIndex !== undefined) {
 			const oldBucket = this.buckets[item.bucketIndex];
 			const index = oldBucket.indexOf(item);

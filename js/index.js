@@ -9,11 +9,11 @@
  */
 
 // Global variables - START ====
-let DEBUG = true;
+let DEBUG = false;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
 const width = window.innerWidth;
-const height = 400;
+const height = 600;
 
 const height1 = 0;
 const flock = [];
@@ -22,7 +22,7 @@ const flockPool = [];
 let count = 1800;
 const maxCount = 3000;
 // Maximum number which is used for one agent to steer to.
-const maxFlockCount = 200;
+const maxFlockCount = 150;
 
 // Also good for speed up things, if we reduce the radius
 const perceptionRadius = 40;
@@ -63,6 +63,15 @@ const app = new PIXI.Application({
 
 //Add the canvas that Pixi automatically created for you to the HTML document
 document.body.appendChild(app.view);
+
+// Create a style element
+const style = document.createElement('style');
+style.textContent = `
+    .sliderLabel, .slider, .sliderValue, .checkbox {
+        display: none;
+    }
+`;
+document.head.appendChild(style);
 
 for (let i = 0; i < maxCount; i++) {
 	flockPool.push(new Agent());

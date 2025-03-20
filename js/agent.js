@@ -1,6 +1,6 @@
 class Agent {
 	static lineWidth = [1, 1, 1, 1];
-	static lineColor = [0xFFFFFF, 0xffff00, 0xff00ff, 0x00ff00];
+	static lineColor = [0xFFFFFF, 0xFFFFFF, 0xffFFff, 0xFFffFF];
 	static fillColor = [0, 0, 0, 0];
 	// Reduce to just 5 colors
 	static colorCache = [
@@ -8,7 +8,7 @@ class Agent {
 		0x444444,  // Dark
 		0x666666,  // Medium
 		0x999999,  // Light
-		0xF1F1F1   // Brightest
+		0xF0F0F0   // Brightest
 	];
 
 	// Static vectors for reuse
