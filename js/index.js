@@ -9,11 +9,11 @@
  */
 
 // Global variables - START ====
-let DEBUG = false;
+let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = window.innerWidth;
-const height = 400;
+const width = window.innerWidth - 24;
+const height = 500;
 const height1 = 0;
 
 const flock = [];
@@ -33,8 +33,8 @@ let alignSlider, cohesionSlider, separationSlider, countSlider;
 let alignValue, cohesionValue, separationValue, countValue;
 
 // Add mouse position tracking
-const mouse = new Victor(0, 0);
-const mouseRadius = 200;
+const mouse = vec2.create();
+const mouseRadius = 100;
 const mouseForce = 2;
 let isMouseInCanvas = false;
 
@@ -107,8 +107,7 @@ countValue = createDiv(count, 'sliderValue');
 // Add mouse move listener
 app.view.addEventListener('mousemove', (e) => {
 	const rect = app.view.getBoundingClientRect();
-	mouse.x = e.clientX - rect.left;
-	mouse.y = e.clientY - rect.top;
+	vec2.set(mouse, e.clientX - rect.left, e.clientY - rect.top);
 	isMouseInCanvas = true;
 });
 

@@ -9,15 +9,19 @@ class Agent {
 		0xFFFFFF   // Fast - brightest
 	];
 
-	static average = new Victor();
+	// Static vectors for reuse
+	static tmpVec = vec2.create();
+	static avgVec = vec2.create();
+
+	static average = vec2.create();
 
 	constructor() {
 		const angle = random(0, Math.PI * 2);
 		const r = random(maxSpeed / 2, maxSpeed);
 
-		this.position = new Victor(random(0, width), random(0, height));
-		this.velocity = new Victor(Math.cos(angle) * r, Math.sin(angle) * r);
-		this.acceleration = new Victor(0, 0);
+		this.position = vec2.fromValues(random(0, width), random(0, height));
+		this.velocity = vec2.fromValues(Math.cos(angle) * r, Math.sin(angle) * r);
+		this.acceleration = vec2.create();
 
 		this.isNear = false; // near to the first agent
 		
@@ -40,7 +44,7 @@ class Agent {
 		near.forEach(arr => {
 			for (let i = 0; i < arr.length; i += step) {
 				const a = arr[Math.floor(i)];
-				const d = this.position.distanceSq(a.position);
+				const d = vec2.squaredDistance(this.position, a.position);
 				if (a !== this && d < r2) {
 					as.push(a);
 					dsq.push(d);
@@ -54,85 +58,68 @@ class Agent {
 	}
 
 	limitAvgForce(avg) {
-		// set length/mangnitude
-		avg.norm();
-		avg.x *= maxSpeed;
-		avg.y *= maxSpeed;
-
-		avg.subtract(this.velocity);
-		// limit
-		if (avg.lengthSq() > maxForce * maxForce) {
-			avg.norm();
-			avg.x *= maxForce;
-			avg.y *= maxForce;
+		const len = vec2.length(avg);
+		if (len > 0) {
+			vec2.scale(avg, avg, maxSpeed / len);
+		}
+		
+		vec2.subtract(avg, avg, this.velocity);
+		const forceSq = vec2.squaredLength(avg);
+		
+		if (forceSq > maxForce * maxForce) {
+			const forceLen = Math.sqrt(forceSq);
+			vec2.scale(avg, avg, maxForce / forceLen);
 		}
 	}
 
 	separation(agents, dsq) {
-		// Do not create a new vector
-		const avg = Agent.average;
-		avg.x = avg.y = 0;
+		vec2.zero(Agent.avgVec);
 		
-		if (agents.length == 0) return avg;
+		if (agents.length === 0) return Agent.avgVec;
 
-		let diff = new Victor();
-		
 		agents.forEach((a, i) => {
-			diff.x = this.position.x - a.position.x;
-			diff.y = this.position.y - a.position.y;
-			
+			vec2.subtract(Agent.tmpVec, this.position, a.position);
 			if (dsq[i] > 0) {
-				diff.x /= dsq[i];
-				diff.y /= dsq[i];
+				vec2.scale(Agent.tmpVec, Agent.tmpVec, 1 / dsq[i]);
 			}
-			avg.add(diff);
+			vec2.add(Agent.avgVec, Agent.avgVec, Agent.tmpVec);
 		});
 
-		avg.x /= agents.length;
-		avg.y /= agents.length;
+		vec2.scale(Agent.avgVec, Agent.avgVec, 1 / agents.length);
+		this.limitAvgForce(Agent.avgVec);
 
-		this.limitAvgForce(avg);
-
-		return avg;
+		return Agent.avgVec;
 	}
 
 	cohesion(agents) {
-		// Do not create a new vector
-		const avg = Agent.average;
-		avg.x = avg.y = 0;
+		vec2.zero(Agent.avgVec);
 		
-		if (agents.length == 0) return avg;
+		if (agents.length === 0) return Agent.avgVec;
 
 		agents.forEach(a => {
-			avg.add(a.position);
+			vec2.add(Agent.avgVec, Agent.avgVec, a.position);
 		});
 
-		avg.x /= agents.length;
-		avg.y /= agents.length;
-		avg.subtract(this.position);
+		vec2.scale(Agent.avgVec, Agent.avgVec, 1 / agents.length);
+		vec2.subtract(Agent.avgVec, Agent.avgVec, this.position);
+		this.limitAvgForce(Agent.avgVec);
 
-		this.limitAvgForce(avg);
-
-		return avg;
+		return Agent.avgVec;
 	}
 
 	align(agents) {
-		// Do not create a new vector
-		const avg = Agent.average;
-		avg.x = avg.y = 0;
+		vec2.zero(Agent.avgVec);
 		
-		if (agents.length == 0) return avg;
+		if (agents.length === 0) return Agent.avgVec;
 
 		agents.forEach(a => {
-			avg.add(a.velocity);
+			vec2.add(Agent.avgVec, Agent.avgVec, a.velocity);
 		});
 
-		avg.x /= agents.length;
-		avg.y /= agents.length;
+		vec2.scale(Agent.avgVec, Agent.avgVec, 1 / agents.length);
+		this.limitAvgForce(Agent.avgVec);
 
-		this.limitAvgForce(avg);
-
-		return avg;
+		return Agent.avgVec;
 	}
 
 	flocking() {
@@ -140,58 +127,55 @@ class Agent {
 		const agents = arrays[0];
 		const distancesSq = arrays[1];
 
-		this.acceleration.x = this.acceleration.y = 0;
+		vec2.zero(this.acceleration);
 
 		const sV = this.separation(agents, distancesSq);
-		sV.x *= sSliderValue
-		sV.y *= sSliderValue;
-		this.acceleration.add(sV);
+		vec2.scale(Agent.tmpVec, sV, sSliderValue);
+		vec2.add(this.acceleration, this.acceleration, Agent.tmpVec);
 
 		const cV = this.cohesion(agents);
-		cV.x *= cSliderValue;
-		cV.y *= cSliderValue;
-		this.acceleration.add(cV);
+		vec2.scale(Agent.tmpVec, cV, cSliderValue);
+		vec2.add(this.acceleration, this.acceleration, Agent.tmpVec);
 
 		const aV = this.align(agents);
-		aV.x *= aSliderValue;
-		aV.y *= aSliderValue;
-		this.acceleration.add(aV);
+		vec2.scale(Agent.tmpVec, aV, aSliderValue);
+		vec2.add(this.acceleration, this.acceleration, Agent.tmpVec);
 
 		// Add mouse avoidance
 		if (isMouseInCanvas) {
 			const mouseAvoid = this.avoidMouse();
-			this.acceleration.add(mouseAvoid);
+			vec2.add(this.acceleration, this.acceleration, mouseAvoid);
 		}
 	}
 
 	avoidMouse() {
-		const dist = this.position.distanceSq(mouse);
+		const dist = vec2.squaredDistance(this.position, mouse);
 		const r2 = mouseRadius * mouseRadius;
 		
 		if (dist < r2) {
-			const diff = new Victor(
-				this.position.x - mouse.x,
-				this.position.y - mouse.y
-			);
+			vec2.subtract(Agent.tmpVec, this.position, mouse);
 			
 			if (dist > 0) {
-				diff.x /= dist;
-				diff.y /= dist;
+				vec2.scale(Agent.tmpVec, Agent.tmpVec, 1 / dist);
 			}
 			
-			diff.normalize();
-			diff.multiply(new Victor(maxSpeed * mouseForce, maxSpeed * mouseForce));
-			diff.subtract(this.velocity);
-			
-			if (diff.lengthSq() > maxForce * maxForce) {
-				diff.normalize();
-				diff.multiply(new Victor(maxForce, maxForce));
+			const len = vec2.length(Agent.tmpVec);
+			if (len > 0) {
+				vec2.scale(Agent.tmpVec, Agent.tmpVec, maxSpeed * mouseForce / len);
 			}
 			
-			return diff;
+			vec2.subtract(Agent.tmpVec, Agent.tmpVec, this.velocity);
+			
+			const forceSq = vec2.squaredLength(Agent.tmpVec);
+			if (forceSq > maxForce * maxForce) {
+				const forceLen = Math.sqrt(forceSq);
+				vec2.scale(Agent.tmpVec, Agent.tmpVec, maxForce / forceLen);
+			}
+			
+			return Agent.tmpVec;
 		}
 		
-		return new Victor(0, 0);
+		return vec2.create();
 	}
 
 	update(dv) {
@@ -199,21 +183,21 @@ class Agent {
 
 		this.flocking();
 
-		this.position.add(this.velocity);//.clone().multiply(dv));
+		vec2.add(this.position, this.position, this.velocity);
 		// `width` and `height` is from the index.js
-		if (this.position.x < 0) this.position.x += width;
-		else if (this.position.x >= width) this.position.x -= width;
-		if (this.position.y < 0) this.position.y += height;
-		else if (this.position.y >= height) this.position.y -= height;
+		if (this.position[0] < 0) this.position[0] += width;
+		else if (this.position[0] >= width) this.position[0] -= width;
+		if (this.position[1] < 0) this.position[1] += height;
+		else if (this.position[1] >= height) this.position[1] -= height;
 
 		subdiv.update(this);
 
-		this.velocity.add(this.acceleration);//.clone().multiply(dv));
+		vec2.add(this.velocity, this.velocity, this.acceleration);
 		// Limit the velocity
-		if (this.velocity.lengthSq() > maxSpeed * maxSpeed) {
-			this.velocity.norm();
-			this.velocity.x *= maxSpeed;
-			this.velocity.y *= maxSpeed;
+		const speedSq = vec2.squaredLength(this.velocity);
+		if (speedSq > maxSpeed * maxSpeed) {
+			const speed = Math.sqrt(speedSq);
+			vec2.scale(this.velocity, this.velocity, maxSpeed / speed);
 		}
 
 		this.show();
@@ -224,13 +208,13 @@ class Agent {
 	show() {
 		this.drawShape();
 
-		this.shape.x = this.position.x;
-		this.shape.y = this.position.y;
-		this.shape.rotation = this.velocity.angle();
+		this.shape.x = this.position[0];
+		this.shape.y = this.position[1];
+		this.shape.rotation = Math.atan2(this.velocity[1], this.velocity[0]);
 	}
 	
 	getColor() {
-		const speed = this.velocity.length();
+		const speed = vec2.length(this.velocity);
 		const normalizedSpeed = speed / maxSpeed;
 		const colorIndex = Math.min(2, Math.floor(normalizedSpeed * 3));
 		return Agent.colorCache[colorIndex];
@@ -243,7 +227,7 @@ class Agent {
 
 		const sState = (this.debug ? 1 : 0) + (this.isNear ? 2 : 0);
 		// Only update if state changed or speed changed very significantly
-		const currentSpeed = this.velocity.length();
+		const currentSpeed = vec2.length(this.velocity);
 		if (this.shapeState !== sState || Math.abs(this.lastSpeed - currentSpeed) > maxSpeed / 3) {
 			this.shapeState = sState;
 			this.lastSpeed = currentSpeed;
