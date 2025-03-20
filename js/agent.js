@@ -5,9 +5,9 @@ class Agent {
 	// Reduce to just 5 colors
 	static colorCache = [
 		0x1C1C1F,  // Darkest
-		0x212124,  // Dark
 		0x303033,  // Medium
 		0x76767D,  // Light
+		0xC6C6CE,
 		0xD4D4DA// Brightest
 	];
 
@@ -232,9 +232,13 @@ class Agent {
 		const sState = (this.debug ? 1 : 0) + (this.isNear ? 2 : 0);
 		const color = this.debug ? Agent.lineColor[sState] : this.getColor();
 
+		const speed = vec2.length(this.velocity);
+		const normalizedSpeed = speed / maxSpeed;
+		const size = 2 + normalizedSpeed * 3; // Size between 2 and 5 based on speed
+
 		this.shape.clear();
 		this.shape.beginFill(color, 1);
-		this.shape.drawCircle(0, 0, 4);
+		this.shape.drawCircle(0, 0, size);
 		this.shape.endFill();
 
 		if (this.debug) {

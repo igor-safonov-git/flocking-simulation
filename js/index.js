@@ -3,7 +3,7 @@
  * 
  * It uses:
  *   Pixi.js for rendering (WebGL)
- *   Victor.js for vector calculation
+ *   пдьфек.js for vector calculation
  *   random.js is small random generation by me 
  *   space_subdiv.js is a basic space subdivision library by me
  */
@@ -14,8 +14,6 @@ let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to 
 
 const width = window.innerWidth;
 const height = window.innerHeight;
-
-const height1 = 0;
 const flock = [];
 const flockPool = [];
 // Agent count
@@ -52,8 +50,8 @@ function random(min = 0, max = 1) {
 
 //Create a Pixi Application
 const app = new PIXI.Application({
-	width: width,
-	height: height,
+	width: window.innerWidth,
+	height: window.innerHeight,
 	antialias: true,
 	transparent: false,
 	resolution: window.devicePixelRatio || 1,
@@ -63,15 +61,6 @@ const app = new PIXI.Application({
 
 //Add the canvas that Pixi automatically created for you to the HTML document
 document.body.appendChild(app.view);
-
-// Create a style element
-const style = document.createElement('style');
-style.textContent = `
-    .sliderLabel, .slider, .sliderValue, .checkbox {
-        display: none;
-    }
-`;
-document.head.appendChild(style);
 
 for (let i = 0; i < maxCount; i++) {
 	flockPool.push(new Agent());
@@ -84,28 +73,26 @@ let sSliderValue = 1.3;
 let cSliderValue = 0.8;
 
 // UI - start =========
-createDiv('Alignment:', 'sliderLabel');
-alignSlider = createSlider(0, 5, aSliderValue, 0.1, 'slider');
-alignSlider.oninput = () => dispaySliderValue(alignSlider, alignValue);
-alignValue = createDiv(aSliderValue, 'sliderValue');
+//createDiv('Alignment:', 'sliderLabel');
+//alignSlider = createSlider(0, 5, aSliderValue, 0.1, 'slider');
+//alignSlider.oninput = () => dispaySliderValue(alignSlider, alignValue);
+//alignValue = createDiv(aSliderValue, 'sliderValue');
 
-createDiv('Cohesion:', 'sliderLabel');
-cohesionSlider = createSlider(0, 5, cSliderValue, 0.1, 'slider');
-cohesionSlider.oninput = () => dispaySliderValue(cohesionSlider, cohesionValue);
-cohesionValue = createDiv(cSliderValue, 'sliderValue');
+//createDiv('Cohesion:', 'sliderLabel');
+//cohesionSlider = createSlider(0, 5, cSliderValue, 0.1, 'slider');
+//cohesionSlider.oninput = () => dispaySliderValue(cohesionSlider, cohesionValue);
+//cohesionValue = createDiv(cSliderValue, 'sliderValue');
 
-createDiv('Separation:', 'sliderLabel');
-separationSlider = createSlider(0, 5, sSliderValue, 0.1, 'slider');
-separationSlider.oninput = () => dispaySliderValue(separationSlider, separationValue);
-separationValue = createDiv(sSliderValue, 'sliderValue');
+//createDiv('Separation:', 'sliderLabel');
+//separationSlider = createSlider(0, 5, sSliderValue, 0.1, 'slider');
+//separationSlider.oninput = () => dispaySliderValue(separationSlider, separationValue);
+//separationValue = createDiv(sSliderValue, 'sliderValue');
 
-const dbgCheckbox = createCheckbox('Debug', DEBUG, 'checkbox');
-dbgCheckbox.changed(() => DEBUG = dbgCheckbox.checked());
+//const dbgCheckbox = createCheckbox('Debug', DEBUG, 'checkbox');
+//dbgCheckbox.changed(() => DEBUG = dbgCheckbox.checked());
 
-const accCheckbox = createCheckbox('Accurate', ACCURATE, 'checkbox');
-accCheckbox.changed(() => ACCURATE = accCheckbox.checked());
-
-document.body.appendChild(document.createElement('br'));
+//const accCheckbox = createCheckbox('Accurate', ACCURATE, 'checkbox');
+//accCheckbox.changed(() => ACCURATE = accCheckbox.checked());
 
 // UI - end ==========
 
