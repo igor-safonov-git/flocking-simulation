@@ -12,8 +12,8 @@
 let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = 500;
-const height = 500;
+const width = window.innerWidth;
+const height = 300;
 
 const height1 = 0;
 const flock = [];
