@@ -8,12 +8,19 @@
  *   space_subdiv.js is a basic space subdivision library by me
  */
 
+// Color scheme
+const DARK_COLOR = '#171719';
+const LIGHT_COLOR = '#212124';
+
+// Set document background color
+document.body.style.backgroundColor = DARK_COLOR;
+document.body.style.margin = '0';
 
 // Global variables - START ====
 let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = 1000;
+const width = 1400;
 const height = 300;
 
 const height1 = 0;
@@ -59,7 +66,7 @@ const app = new PIXI.Application({
 	transparent: false,
 	resolution: window.devicePixelRatio || 1,
 	autoDensity: true,
-	backgroundColor: 0x171719
+	backgroundColor: parseInt(LIGHT_COLOR.replace('#', '0x'))
 });
 
 //Add the canvas that Pixi automatically created for you to the HTML document
