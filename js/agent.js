@@ -2,11 +2,13 @@ class Agent {
 	static lineWidth = [1, 1, 1, 1];
 	static lineColor = [0xFFFFFF, 0xffff00, 0xff00ff, 0x00ff00];
 	static fillColor = [0, 0, 0, 0];
-	// Reduce to just 3 colors
+	// Reduce to just 5 colors
 	static colorCache = [
-		0x18181A,  // Slow - darkest
+		0x18181A,  // Darkest
+		0x444444,  // Dark
 		0x666666,  // Medium
-		0xF1F1F1   // Fast - brightest
+		0x999999,  // Light
+		0xF1F1F1   // Brightest
 	];
 
 	// Static vectors for reuse
@@ -14,6 +16,17 @@ class Agent {
 	static avgVec = vec2.create();
 
 	static average = vec2.create();
+
+	// Add to static properties
+	static vectorPool = Array(10).fill().map(() => vec2.create());
+	static poolIndex = 0;
+
+	// Method to get a temporary vector
+	static getTempVector() {
+		const vec = Agent.vectorPool[Agent.poolIndex];
+		Agent.poolIndex = (Agent.poolIndex + 1) % Agent.vectorPool.length;
+		return vec;
+	}
 
 	constructor() {
 		const angle = random(0, Math.PI * 2);
@@ -175,11 +188,12 @@ class Agent {
 			return Agent.tmpVec;
 		}
 		
-		return vec2.create();
+		vec2.set(Agent.tmpVec, 0, 0);
+		return Agent.tmpVec;
 	}
 
 	update(dv) {
-		this.debug = DEBUG && flock[0] === this; // only for the first element
+		this.debug = DEBUG && flock.indexOf(this) < 5; // show first 5 agents in debug mode
 
 		this.flocking();
 
@@ -216,7 +230,7 @@ class Agent {
 	getColor() {
 		const speed = vec2.length(this.velocity);
 		const normalizedSpeed = speed / maxSpeed;
-		const colorIndex = Math.min(2, Math.floor(normalizedSpeed * 3));
+		const colorIndex = Math.min(4, Math.floor(normalizedSpeed * 5));
 		return Agent.colorCache[colorIndex];
 	}
 
@@ -240,7 +254,7 @@ class Agent {
 			this.shape.endFill();
 
 			if (this.debug) {
-				this.shape.lineStyle(1, 0x00ffff, 1);
+				this.shape.lineStyle(1, 0xFFFFFF, 1);
 				this.shape.drawCircle(0, 0, perceptionRadius);
 			}
 		}

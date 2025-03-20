@@ -8,34 +8,26 @@
  *   space_subdiv.js is a basic space subdivision library by me
  */
 
-// Color scheme
-const DARK_COLOR = '#171719';
-const LIGHT_COLOR = '#212124';
-
-// Set document background color
-document.body.style.backgroundColor = DARK_COLOR;
-document.body.style.margin = '0';
-
 // Global variables - START ====
 let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = 1400;
-const height = 300;
+const width = window.innerWidth;
+const height = 400;
 
 const height1 = 0;
 const flock = [];
 const flockPool = [];
 // Agent count
 let count = 1800;
-const maxCount = 10000;
+const maxCount = 3000;
 // Maximum number which is used for one agent to steer to.
-const maxFlockCount = 80;
+const maxFlockCount = 200;
 
 // Also good for speed up things, if we reduce the radius
 const perceptionRadius = 40;
 const maxForce = 0.3;
-const maxSpeed = 5;
+const maxSpeed = 3;
 
 let alignSlider, cohesionSlider, separationSlider;
 let alignValue, cohesionValue, separationValue;
@@ -66,7 +58,7 @@ const app = new PIXI.Application({
 	transparent: false,
 	resolution: window.devicePixelRatio || 1,
 	autoDensity: true,
-	backgroundColor: parseInt(LIGHT_COLOR.replace('#', '0x'))
+	backgroundColor: 0x18181A
 });
 
 //Add the canvas that Pixi automatically created for you to the HTML document
