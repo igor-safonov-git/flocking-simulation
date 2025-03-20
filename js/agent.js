@@ -2,13 +2,11 @@ class Agent {
 	static lineWidth = [1, 1, 1, 1];
 	static lineColor = [0xFFFFFF, 0xffff00, 0xff00ff, 0x00ff00];
 	static fillColor = [0, 0, 0, 0];
-	// Reduce to just 5 colors
+	// Reduce to just 3 colors
 	static colorCache = [
-		0x111111,  // Very slow - darkest
-		0x333333,  // Slow
+		0x111111,  // Slow - darkest
 		0x666666,  // Medium
-		0x999999,  // Fast
-		0xFFFFFF   // Very fast - brightest
+		0xFFFFFF   // Fast - brightest
 	];
 
 	static average = new Victor();
@@ -234,7 +232,7 @@ class Agent {
 	getColor() {
 		const speed = this.velocity.length();
 		const normalizedSpeed = speed / maxSpeed;
-		const colorIndex = Math.min(4, Math.floor(normalizedSpeed * 5));
+		const colorIndex = Math.min(2, Math.floor(normalizedSpeed * 3));
 		return Agent.colorCache[colorIndex];
 	}
 

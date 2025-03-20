@@ -12,13 +12,14 @@
 let DEBUG = false;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = window.innerWidth - 24;
-const height = 500;
+const width = window.innerWidth;
+const height = 400;
+const height1 = 0;
 
 const flock = [];
 const flockPool = [];
-// Agent count - now fixed since we removed the slider
-const count = 1800;
+// Agent count
+let count = 1800;
 const maxCount = 10000;
 // Maximum number which is used for one agent to steer to.
 const maxFlockCount = 300;
@@ -28,8 +29,8 @@ const perceptionRadius = 40;
 const maxForce = 0.3;
 const maxSpeed = 5;
 
-let alignSlider, cohesionSlider, separationSlider;
-let alignValue, cohesionValue, separationValue;
+let alignSlider, cohesionSlider, separationSlider, countSlider;
+let alignValue, cohesionValue, separationValue, countValue;
 
 // Add mouse position tracking
 const mouse = new Victor(0, 0);
@@ -47,6 +48,7 @@ const subdiv = new SubDiv(width, height, perceptionRadius);
 function random(min = 0, max = 1) {
 	return Math.random() * max + min;
 }
+
 
 //Create a Pixi Application
 const app = new PIXI.Application({
@@ -87,6 +89,19 @@ createDiv('Separation:', 'sliderLabel');
 separationSlider = createSlider(0, 5, sSliderValue, 0.1, 'slider');
 separationSlider.oninput = () => dispaySliderValue(separationSlider, separationValue);
 separationValue = createDiv(sSliderValue, 'sliderValue');
+
+const dbgCheckbox = createCheckbox('Debug', DEBUG, 'checkbox');
+dbgCheckbox.changed(() => DEBUG = dbgCheckbox.checked());
+
+const accCheckbox = createCheckbox('Accurate', ACCURATE, 'checkbox');
+accCheckbox.changed(() => ACCURATE = accCheckbox.checked());
+
+document.body.appendChild(document.createElement('br'));
+
+createDiv('Agent count:', 'sliderLabel agent');
+countSlider = createSlider(100, maxCount, count, 100, 'slider');
+countSlider.oninput = () => dispaySliderValue(countSlider, countValue);
+countValue = createDiv(count, 'sliderValue');
 // UI - end ==========
 
 // Add mouse move listener
@@ -110,18 +125,22 @@ function dispaySliderValue(slider, val) {
 	aSliderValue = parseFloat(alignSlider.value);
 	sSliderValue = parseFloat(separationSlider.value);
 	cSliderValue = parseFloat(cohesionSlider.value);
+
+	updateCount(parseFloat(countSlider.value));
 }
 
 function updateCount(c) {
 	if (c === flock.length) return;
 
-	if (flock.length < c) {
-		while (flock.length < c) {
+	count = c;
+
+	if (flock.length < count) {
+		while (flock.length < count) {
 			app.stage.addChild(flockPool[flock.length].shape);
 			flock.push(flockPool[flock.length]);
 		}
 	} else {
-		while (flock.length > c) {
+		while (flock.length > count) {
 			app.stage.removeChild(flock.pop().shape);
 		}
 	}
