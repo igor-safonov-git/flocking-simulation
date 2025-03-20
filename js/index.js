@@ -25,7 +25,7 @@ const maxFlockCount = 100;
 // Also good for speed up things, if we reduce the radius
 const perceptionRadius = 80;
 const maxForce = 0.2;
-const maxSpeed = 4;
+const maxSpeed = 3;
 
 let alignSlider, cohesionSlider, separationSlider;
 let alignValue, cohesionValue, separationValue;
