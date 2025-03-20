@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle Life Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h3>Particle Life Controls</h3>
+        <div class="slider-container">
+            <label for="attraction">Attraction Force</label>
+            <input type="range" id="attraction" min="0" max="100" value="50">
+        </div>
+        <div class="slider-container">
+            <label for="repulsion">Repulsion Force</label>
+            <input type="range" id="repulsion" min="0" max="100" value="30">
+        </div>
+        <div class="slider-container">
+            <label for="particleCount">Particle Count</label>
+            <input type="range" id="particleCount" min="10" max="1000" value="200">
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "@dimforge/rapier3d": "https://cdn.skypack.dev/@dimforge/rapier3d-compat"
+            }
+        }
+    </script>
+
+    <script type="module" src="particle-life.js"></script>
+</body>
+</html>

@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Step Vertex Animation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        #info h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        #info p {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h1>Two-Step Vertex Animation</h1>
+        <p>Vertices snap to spline (X,Y) coordinates, then restore in two stages.</p>
+        <p>Use mouse to rotate view, scroll to zoom.</p>
+        <p>Status: <span id="status">Ready</span></p>
+    </div>
+    
+    <div id="controls">
+        <button id="trigger-animation">Start Animation</button>
+        <button id="toggle-wireframe">Show Wireframe</button>
+    </div>
+
+    <!-- ES Module shims and import maps -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Custom script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121212);
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 5, 15);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Create geometry parameters
+        const boxWidth = 2;
+        const boxHeight = 12;
+        const boxDepth = 2;
+        const boxWidthSegments = 48; // Increased for higher polygon count
+        const boxHeightSegments = 64; // Increased for higher polygon count
+        const boxDepthSegments = 48; // Increased for higher polygon count
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Reduced intensity for stronger shadows
+        scene.add(ambientLight);
+        
+        // Main directional light with shadows
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 10);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -15;
+        directionalLight.shadow.camera.right = 15;
+        directionalLight.shadow.camera.top = 15;
+        directionalLight.shadow.camera.bottom = -15;
+        directionalLight.shadow.bias = -0.0005;
+        scene.add(directionalLight);
+        
+        // Add a rim light from behind
+        const rimLight = new THREE.DirectionalLight(0x5099ff, 0.5);
+        rimLight.position.set(-5, 5, -5);
+        scene.add(rimLight);
+        
+        // Add a fill light from the opposite side
+        const fillLight = new THREE.DirectionalLight(0xffffaa, 0.3);
+        fillLight.position.set(-10, 10, 10);
+        scene.add(fillLight);
+        
+        // Add a floor to receive shadows
+        const floorGeometry = new THREE.PlaneGeometry(30, 30);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x333333, 
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -boxHeight/2 - 0.01; // Just below the box
+        floor.receiveShadow = true;
+        scene.add(floor);
+        
+        // Add a grid for reference
+        const gridHelper = new THREE.GridHelper(20, 20);
+        gridHelper.position.y = -boxHeight/2 - 0.001; // Just above the floor
+        scene.add(gridHelper);
+        
+        // Create a spline (curve) that will run through the center of the box
+        const splinePoints = [
+            new THREE.Vector3(0, -boxHeight/2 - 1, 0),  // Start below the box
+            new THREE.Vector3(0, -boxHeight/3, 0),      // Lower section inside box
+            new THREE.Vector3(0, 0, 0),                 // Center of box
+            new THREE.Vector3(0, boxHeight/3, 0),       // Upper section inside box
+            new THREE.Vector3(0, boxHeight/2 + 1, 0)    // End above the box
+        ];
+        
+        const splineCurve = new THREE.CatmullRomCurve3(splinePoints);
+        
+        // Visualize the spline
+        const splineGeometry = new THREE.BufferGeometry().setFromPoints(
+            splineCurve.getPoints(100)
+        );
+        const splineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const splineObject = new THREE.Line(splineGeometry, splineMaterial);
+        scene.add(splineObject);
+        
+        // Add small spheres at the control points
+        splinePoints.forEach(point => {
+            const sphereGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.copy(point);
+            scene.add(sphere);
+        });
+        
+        // Create a box geometry with more segments for smoother deformation
+        const boxGeometry = new THREE.BoxGeometry(
+            boxWidth,
+            boxHeight,
+            boxDepth,
+            boxWidthSegments,  // Already high density, no need to multiply
+            boxHeightSegments,  
+            boxDepthSegments
+        );
+        
+        // Apply subdivision modifier to smooth the geometry
+        // We're using a custom smoothing approach since THREE.SubdivisionModifier is not built-in
+        function smoothGeometry(geometry) {
+            // Simple vertex smoothing by averaging adjacent vertices
+            const positions = geometry.getAttribute('position');
+            const smoothedPositions = positions.array.slice();
+            
+            // Store original positions to avoid corrupting the smoothing
+            const origPositions = positions.array.slice();
+            
+            // Apply a more detailed smoothing effect for high-poly mesh
+            for (let i = 0; i < positions.count; i++) {
+                const idx = i * 3;
+                // Add subtle curves to the box sides by pushing vertices outward a bit
+                // This will only affect non-corner vertices
+                const x = origPositions[idx];
+                const y = origPositions[idx + 1];
+                const z = origPositions[idx + 2];
+                
+                // Calculate distance from the center line (Y-axis)
+                const distFromCenter = Math.sqrt(x * x + z * z);
+                
+                // Only modify vertices that aren't exactly at the corners
+                if (Math.abs(Math.abs(x) - boxWidth / 2) > 0.01 || 
+                    Math.abs(Math.abs(z) - boxDepth / 2) > 0.01) {
+                    
+                    // Add a more refined bulge to non-corner vertices
+                    const bulgeStrength = 0.09; // Adjusted for higher polygon count
+                    const normalizedY = (y + boxHeight / 2) / boxHeight; // 0 at bottom, 1 at top
+                    
+                    // Create a more complex bulge pattern that varies based on height
+                    // This creates a subtle organic waviness
+                    const midPoint = 0.5;
+                    let bulge = bulgeStrength * (1 - 4 * Math.pow(normalizedY - midPoint, 2));
+                    
+                    // Add a subtle wave pattern
+                    bulge += 0.02 * Math.sin(normalizedY * Math.PI * 6);
+                    
+                    // Push vertex slightly outward from center
+                    if (distFromCenter > 0.01) {
+                        const dirX = x / distFromCenter;
+                        const dirZ = z / distFromCenter;
+                        smoothedPositions[idx] = x + dirX * bulge;
+                        smoothedPositions[idx + 2] = z + dirZ * bulge;
+                    }
+                }
+            }
+            
+            // Update the geometry with smoothed positions
+            positions.array.set(smoothedPositions);
+            positions.needsUpdate = true;
+            
+            // Make sure the normals are updated for proper lighting with the displacement map
+            geometry.computeVertexNormals();
+            
+            return geometry;
+        }
+        
+        // Apply smoothing to the geometry
+        smoothGeometry(boxGeometry);
+        
+        // Create a material for the box - more blob-like
+        const boxMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00aaff,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide,
+            wireframe: false,
+            roughness: 0.2,    // Lower roughness for a smoother look
+            metalness: 0.1,    // Slight metalness for better highlights
+            envMapIntensity: 0.8,
+            displacementScale: 0.4,  // Adjusted for vertically stretched texture
+            displacementBias: 0      // Offset for the displacement effect
+        });
+        
+        // Load the displacement map
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+            'https://files.catbox.moe/uh1kau.png',
+            function(texture) {
+                // Configure texture for vertical stretching
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                
+                // Create extreme vertical stretching (1x12)
+                texture.repeat.set(1, 12); // Much more vertical stretching
+                
+                // Add slight rotation to break up the obvious repetition
+                texture.rotation = Math.PI * 0.02; // Slightly rotated texture
+                
+                // Offset the texture to align with the box shape
+                texture.offset.set(0, 0.25);
+                
+                // Improve texture quality
+                texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                texture.minFilter = THREE.LinearMipmapLinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                
+                // Apply the texture as a displacement map
+                boxMaterial.displacementMap = texture;
+                
+                // Also use the same texture as a normal map for enhanced effect
+                // This makes the lighting react to the texture even without physical displacement
+                boxMaterial.normalMap = texture;
+                boxMaterial.normalScale = new THREE.Vector2(0.7, 1.2); // Increased vertical normal influence
+                
+                boxMaterial.needsUpdate = true;
+                
+                console.log('High-detail displacement and normal maps loaded successfully');
+            },
+            undefined, // onProgress callback not needed
+            function(err) {
+                console.error('Error loading texture maps:', err);
+            }
+        );
+        
+        // Create the box mesh
+        const box = new THREE.Mesh(boxGeometry, boxMaterial);
+        box.castShadow = true; // Enable shadow casting
+        box.receiveShadow = true; // Enable shadow receiving
+        scene.add(box);
+        
+        // Also add a wireframe version to better visualize the deformation
+        const wireframeMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true
+        });
+        const wireframeBox = new THREE.Mesh(boxGeometry.clone(), wireframeMaterial);
+        wireframeBox.visible = false; // Hide the wireframe
+        scene.add(wireframeBox);
+        
+        // Create a restoration wave indicator
+        const waveGeometry = new THREE.TorusGeometry(boxWidth + 0.1, 0.05, 16, 32);
+        const waveMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 0.7 
+        });
+        const waveRing = new THREE.Mesh(waveGeometry, waveMaterial);
+        waveRing.rotation.x = Math.PI / 2; // Make it horizontal
+        scene.add(waveRing);
+        waveRing.visible = false; // Initially hidden
+        
+        // Store vertex data
+        const positionAttribute = boxGeometry.getAttribute('position');
+        const originalPositions = new Float32Array(positionAttribute.array.length);
+        const splineSnappedPositions = new Float32Array(positionAttribute.array.length);
+        const nearSplineIndices = []; // To track vertices near the spline
+
+        // Store original vertex positions
+        originalPositions.set(positionAttribute.array);
+        
+        // Animation state
+        let isDeforming = false;          // First step: deforming to spline
+        let isRestoringNearSpline = false; // Restoration with wave effect
+        let animationStartTime = 0;
+        const animationDuration = 400; // 400ms for animation
+        
+        // Function to find the nearest point on the spline for a given position
+        function findNearestPointOnSpline(position) {
+            const samples = 100;
+            let minDistance = Infinity;
+            let nearestPoint = null;
+            
+            for (let i = 0; i <= samples; i++) {
+                const t = i / samples;
+                const point = splineCurve.getPointAt(t);
+                const distance = position.distanceTo(point);
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestPoint = point.clone();
+                }
+            }
+            
+            return { point: nearestPoint, distance: minDistance };
+        }
+        
+        // Function to snap vertices to the spline with a blob-like effect
+        function snapVerticesToSpline() {
+            const positions = positionAttribute.array;
+            const nearSplineThreshold = boxWidth * 0.5; // Threshold to consider vertex "near" the spline
+            
+            // Reset nearSplineIndices
+            nearSplineIndices.length = 0;
+            
+            // For each vertex
+            for (let i = 0; i < positions.length; i += 3) {
+                const vertexPosition = new THREE.Vector3(
+                    originalPositions[i],
+                    originalPositions[i + 1],
+                    originalPositions[i + 2]
+                );
+                
+                // Convert from local to world coordinates for spline comparison
+                const worldPosition = box.localToWorld(vertexPosition.clone());
+                
+                // Find nearest point on spline
+                const { point: targetPoint, distance } = findNearestPointOnSpline(worldPosition);
+                
+                // Convert target back to local coordinates
+                const localTargetPoint = box.worldToLocal(targetPoint.clone());
+                
+                // Calculate normalized distance for smoother transition
+                const maxInfluenceDistance = boxWidth * 1.5;
+                let influenceFactor = 1.0;
+                
+                if (distance > 0) {
+                    influenceFactor = 1.0 - Math.min(distance / maxInfluenceDistance, 1.0);
+                    // Apply non-linear falloff for more blob-like appearance
+                    influenceFactor = Math.pow(influenceFactor, 1.8);
+                }
+                
+                // Store snapped positions with smooth falloff
+                const lerpFactor = influenceFactor;
+                splineSnappedPositions[i] = THREE.MathUtils.lerp(originalPositions[i], localTargetPoint.x, lerpFactor);
+                splineSnappedPositions[i + 1] = THREE.MathUtils.lerp(originalPositions[i + 1], localTargetPoint.y, lerpFactor);
+                
+                // Add a slight spherical influence for Z coordinate (helps with blob appearance)
+                const zInfluence = 0.2 * lerpFactor;
+                const zDisplacement = (originalPositions[i + 2] > 0 ? -1 : 1) * zInfluence;
+                splineSnappedPositions[i + 2] = originalPositions[i + 2] + zDisplacement * Math.abs(originalPositions[i + 2]);
+                
+                // Set current positions to snapped positions
+                positions[i] = splineSnappedPositions[i];
+                positions[i + 1] = splineSnappedPositions[i + 1];
+                positions[i + 2] = splineSnappedPositions[i + 2];
+                
+                // Track vertices near the spline for first restoration step
+                if (distance < nearSplineThreshold) {
+                    nearSplineIndices.push(i);
+                }
+            }
+            
+            // Update the geometry
+            positionAttribute.needsUpdate = true;
+            
+            // Also update the wireframe
+            const wireframePositions = wireframeBox.geometry.getAttribute('position');
+            wireframePositions.array.set(positions);
+            wireframePositions.needsUpdate = true;
+            
+            console.log(`Vertices snapped to spline. ${nearSplineIndices.length / 3} vertices are near the spline.`);
+        }
+        
+        // Function to restore all vertices in a bottom-to-top wave
+        function restoreNearSplineVertices(progress) {
+            const positions = positionAttribute.array;
+            
+            // Determine min and max Y values of the box for normalization
+            const minY = -boxHeight / 2;
+            const maxY = boxHeight / 2;
+            const yRange = maxY - minY;
+            
+            // Update the wave ring position and scale but keep it hidden
+            waveRing.visible = false; // Always keep the wave ring hidden
+            const waveStartY = maxY + 1.0;  // Start at the top
+            const waveEndY = minY - 1.0;    // End at the bottom
+            const waveY = waveStartY - progress * (waveStartY - waveEndY); // Move downward
+            waveRing.position.y = waveY;
+            
+            // Make the wave grow in size as it moves down
+            const baseScale = 1.0;
+            const maxExtraScale = 0.5;
+            const waveScale = baseScale + maxExtraScale * (1 - progress); // Scale decreases as it moves down
+            waveRing.scale.set(waveScale, waveScale, 1);
+            
+            // For ALL vertices
+            for (let i = 0; i < positions.length; i += 3) {
+                // Get original vertex position
+                const originalX = originalPositions[i];
+                const originalY = originalPositions[i + 1];
+                const originalZ = originalPositions[i + 2];
+                
+                // Check for different types of edge vertices that should stay snapped to the spline
+                
+                // 1. Check if this vertex is on the top or bottom face
+                const isTopOrBottomFace = Math.abs(Math.abs(originalY) - boxHeight/2) < 0.01;
+                
+                // 2. Check if this vertex is on a vertical edge (where both X and Z are at boundary)
+                const isVerticalEdge = 
+                    Math.abs(Math.abs(originalX) - boxWidth/2) < 0.01 && 
+                    Math.abs(Math.abs(originalZ) - boxDepth/2) < 0.01;
+                
+                // 3. Check if this is a corner or edge vertex (where at least two coordinates are at boundary)
+                let edgeCount = 0;
+                if (Math.abs(Math.abs(originalX) - boxWidth/2) < 0.01) edgeCount++;
+                if (Math.abs(Math.abs(originalY) - boxHeight/2) < 0.01) edgeCount++;
+                if (Math.abs(Math.abs(originalZ) - boxDepth/2) < 0.01) edgeCount++;
+                
+                const isSideEdgeVertex = edgeCount >= 2;
+                
+                // Consider a vertex as an "edge vertex" if it's either:
+                // - On a top/bottom face
+                // - On a vertical edge
+                // - On any other edge (where two coordinates are at boundaries)
+                const isEdgeVertex = isTopOrBottomFace || isVerticalEdge || isSideEdgeVertex;
+                
+                // Skip edge vertices - leave them snapped to the spline
+                if (isEdgeVertex) {
+                    continue;
+                }
+                
+                // Get vertex Y position for wave calculation
+                const vertexY = originalY;
+                const normalizedY = (vertexY - minY) / yRange;
+                
+                // Calculate wave effect (sigmoid function) for top-to-bottom motion
+                const waveSteepness = 5.0;
+                const wavePosition = (1 - progress) * 1.5; // Reverse progress (1.5 to 0)
+                const distanceFromWave = normalizedY - wavePosition; // Reversed from before
+                const waveEffect = 1.0 / (1.0 + Math.exp(-waveSteepness * distanceFromWave));
+                
+                // Restore non-edge vertices to original position
+                // Apply the wave effect to interpolate from snapped to original position
+                positions[i] = splineSnappedPositions[i] * (1 - waveEffect) + originalPositions[i] * waveEffect;
+                positions[i + 1] = splineSnappedPositions[i + 1] * (1 - waveEffect) + originalPositions[i + 1] * waveEffect;
+                positions[i + 2] = splineSnappedPositions[i + 2] * (1 - waveEffect) + originalPositions[i + 2] * waveEffect;
+            }
+            
+            // Update the geometry
+            positionAttribute.needsUpdate = true;
+            
+            // Also update the wireframe
+            const wireframePositions = wireframeBox.geometry.getAttribute('position');
+            wireframePositions.array.set(positions);
+            wireframePositions.needsUpdate = true;
+            
+            // No need to hide the wave ring when done, as it's already hidden
+        }
+        
+        // Trigger animation
+        document.getElementById('trigger-animation').addEventListener('click', () => {
+            if (!isDeforming && !isRestoringNearSpline) {
+                // First, snap vertices to spline
+                snapVerticesToSpline();
+                
+                // Then start the restoration animation
+                isRestoringNearSpline = true;
+                animationStartTime = performance.now();
+                document.getElementById('status').textContent = 'Restoring vertices in wave pattern...';
+            }
+        });
+        
+        // Add toggle button for wireframe
+        const toggleWireframeButton = document.getElementById('toggle-wireframe');
+        toggleWireframeButton.addEventListener('click', () => {
+            wireframeBox.visible = !wireframeBox.visible;
+            toggleWireframeButton.textContent = wireframeBox.visible ? 
+                'Hide Wireframe' : 'Show Wireframe';
+        });
+        
+        // Add a toggle button for the displacement effect
+        const toggleDisplacementButton = document.createElement('button');
+        toggleDisplacementButton.textContent = 'Toggle Displacement';
+        toggleDisplacementButton.addEventListener('click', () => {
+            if (boxMaterial.displacementScale > 0) {
+                // Store the current scale
+                boxMaterial._savedDisplacementScale = boxMaterial.displacementScale;
+                boxMaterial.displacementScale = 0;
+                toggleDisplacementButton.textContent = 'Enable Displacement';
+            } else {
+                // Restore the saved scale or default to 0.4
+                boxMaterial.displacementScale = boxMaterial._savedDisplacementScale || 0.4;
+                toggleDisplacementButton.textContent = 'Disable Displacement';
+            }
+        });
+        document.getElementById('controls').appendChild(toggleDisplacementButton);
+        
+        // Add a button to cycle through displacement levels
+        const cycleModes = ['Low', 'Medium', 'High'];
+        let currentMode = 1; // Start at medium
+        
+        const cycleDisplacementButton = document.createElement('button');
+        cycleDisplacementButton.textContent = `Displacement: ${cycleModes[currentMode]}`;
+        cycleDisplacementButton.addEventListener('click', () => {
+            currentMode = (currentMode + 1) % cycleModes.length;
+            
+            // Set the displacement scale based on the selected mode
+            switch(currentMode) {
+                case 0: // Low
+                    boxMaterial.displacementScale = 0.2;
+                    boxMaterial.normalScale.set(0.5, 0.8);
+                    break;
+                case 1: // Medium
+                    boxMaterial.displacementScale = 0.4;
+                    boxMaterial.normalScale.set(0.7, 1.2);
+                    break;
+                case 2: // High
+                    boxMaterial.displacementScale = 0.7;
+                    boxMaterial.normalScale.set(0.8, 1.6);
+                    break;
+            }
+            
+            // Update button text
+            cycleDisplacementButton.textContent = `Displacement: ${cycleModes[currentMode]}`;
+        });
+        document.getElementById('controls').appendChild(cycleDisplacementButton);
+        
+        // Add a button to toggle between vertical and horizontal texture direction
+        const textureDirectionButton = document.createElement('button');
+        textureDirectionButton.textContent = 'Direction: Vertical';
+        let isVertical = true;
+        
+        textureDirectionButton.addEventListener('click', () => {
+            // Toggle direction
+            isVertical = !isVertical;
+            
+            // Get the current texture
+            const texture = boxMaterial.displacementMap;
+            if (texture) {
+                if (isVertical) {
+                    // Vertical stretching
+                    texture.repeat.set(1, 12);
+                    texture.rotation = Math.PI * 0.02;
+                    texture.offset.set(0, 0.25);
+                    boxMaterial.normalScale.set(boxMaterial.normalScale.x, 
+                                                boxMaterial.normalScale.x * 1.5);
+                } else {
+                    // Horizontal stretching
+                    texture.repeat.set(12, 1);
+                    texture.rotation = Math.PI * 0.02;
+                    texture.offset.set(0.25, 0);
+                    boxMaterial.normalScale.set(boxMaterial.normalScale.y * 0.6,
+                                                boxMaterial.normalScale.y * 0.6);
+                }
+                
+                texture.needsUpdate = true;
+                boxMaterial.needsUpdate = true;
+            }
+            
+            // Update button text
+            textureDirectionButton.textContent = `Direction: ${isVertical ? 'Vertical' : 'Horizontal'}`;
+        });
+        document.getElementById('controls').appendChild(textureDirectionButton);
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const currentTime = performance.now();
+            
+            // Handle restoration with wave effect
+            if (isRestoringNearSpline) {
+                const elapsed = currentTime - animationStartTime;
+                const progress = Math.min(elapsed / animationDuration, 1); // Use the full animation duration
+                
+                restoreNearSplineVertices(progress);
+                
+                if (progress >= 1) {
+                    isRestoringNearSpline = false;
+                    document.getElementById('status').textContent = 'Ready';
+                }
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+    </script>
+</body>
+</html> 

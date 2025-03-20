@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Box Deformation With Straight Spline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        #info h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        #info p {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h1>Box Deformation With Straight Spline</h1>
+        <p>The box deforms more at the top and less at the bottom along a straight central axis.</p>
+        <p>Use mouse to rotate view, scroll to zoom.</p>
+        <p>Status: <span id="status">Ready</span></p>
+    </div>
+    
+    <div id="controls">
+        <button id="trigger-deform">Trigger Deformation</button>
+        <button id="auto-deform-toggle">Enable Auto Deformation</button>
+        <button id="toggle-influence-vis">Show Influence Radius</button>
+    </div>
+
+    <!-- ES Module shims and import maps -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Custom script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121212);
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 5, 15);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 10);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+        
+        // Add a grid for reference
+        const gridHelper = new THREE.GridHelper(20, 20);
+        scene.add(gridHelper);
+        
+        // Create geometry parameters
+        const boxWidth = 2;
+        const boxHeight = 12;
+        const boxDepth = 2;
+        const boxWidthSegments = 16; // Segments for smooth deformation
+        const boxHeightSegments = 24;
+        const boxDepthSegments = 16;
+        
+        // Create a spline (curve) that will run through the center of the box
+        const splinePoints = [
+            new THREE.Vector3(0, -boxHeight/2 - 1, 0),  // Start below the box
+            new THREE.Vector3(0, -boxHeight/3, 0),      // Lower section inside box
+            new THREE.Vector3(0, 0, 0),                 // Center of box
+            new THREE.Vector3(0, boxHeight/3, 0),       // Upper section inside box
+            new THREE.Vector3(0, boxHeight/2 + 1, 0)    // End above the box
+        ];
+        
+        const splineCurve = new THREE.CatmullRomCurve3(splinePoints);
+        
+        // Visualize the spline
+        const splineGeometry = new THREE.BufferGeometry().setFromPoints(
+            splineCurve.getPoints(100)
+        );
+        const splineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const splineObject = new THREE.Line(splineGeometry, splineMaterial);
+        scene.add(splineObject);
+        
+        // Add small spheres at the control points
+        splinePoints.forEach(point => {
+            const sphereGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.copy(point);
+            scene.add(sphere);
+        });
+        
+        // Create a box geometry instead of cylinder
+        const boxGeometry = new THREE.BoxGeometry(
+            boxWidth,
+            boxHeight,
+            boxDepth,
+            boxWidthSegments,
+            boxHeightSegments,
+            boxDepthSegments
+        );
+        
+        // Create a material for the box
+        const boxMaterial = new THREE.MeshPhongMaterial({
+            color: 0x00aaff,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+            wireframe: false
+        });
+        
+        // Create the box mesh
+        const box = new THREE.Mesh(boxGeometry, boxMaterial);
+        scene.add(box);
+        
+        // Also add a wireframe version to better visualize the deformation
+        const wireframeMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true
+        });
+        const wireframeBox = new THREE.Mesh(boxGeometry.clone(), wireframeMaterial);
+        scene.add(wireframeBox);
+        
+        // Create a restoration wave indicator
+        const waveGeometry = new THREE.TorusGeometry(boxWidth + 0.1, 0.05, 16, 32);
+        const waveMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 0.7 
+        });
+        const waveRing = new THREE.Mesh(waveGeometry, waveMaterial);
+        waveRing.rotation.x = Math.PI / 2; // Make it horizontal
+        scene.add(waveRing);
+        waveRing.visible = false; // Initially hidden
+        
+        // Create an outside-in visualization (box that shrinks)
+        const outsideInGeometry = new THREE.BoxGeometry(
+            boxWidth + 0.1, 
+            boxHeight + 0.1, 
+            boxDepth + 0.1,
+            2,
+            4,
+            2
+        );
+        const outsideInMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00aaff,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+            wireframe: true
+        });
+        const outsideInVisualizer = new THREE.Mesh(outsideInGeometry, outsideInMaterial);
+        scene.add(outsideInVisualizer);
+        outsideInVisualizer.visible = false; // Initially hidden
+        
+        // Create a visualization for the influence radius
+        const influenceRadiusHelper = new THREE.Mesh(
+            new THREE.TorusGeometry(boxWidth * 4.5, 0.05, 16, 100),
+            new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.5 })
+        );
+        influenceRadiusHelper.rotation.x = Math.PI / 2; // Make it horizontal
+        scene.add(influenceRadiusHelper);
+        influenceRadiusHelper.visible = false; // Start with it hidden
+        
+        // Add a toggle button for the influence radius visualization
+        const toggleInfluenceVisButton = document.createElement('button');
+        toggleInfluenceVisButton.textContent = 'Show Influence Radius';
+        toggleInfluenceVisButton.addEventListener('click', () => {
+            influenceRadiusHelper.visible = !influenceRadiusHelper.visible;
+            toggleInfluenceVisButton.textContent = influenceRadiusHelper.visible ? 
+                'Hide Influence Radius' : 'Show Influence Radius';
+        });
+        document.getElementById('controls').appendChild(toggleInfluenceVisButton);
+        
+        // Store original vertex positions
+        const positionAttribute = boxGeometry.getAttribute('position');
+        const originalPositions = new Float32Array(positionAttribute.array.length);
+        originalPositions.set(positionAttribute.array);
+        
+        // Animation state
+        let isDeforming = false;
+        let isRestoring = false;
+        let deformationStartTime = 0;
+        let restorationStartTime = 0;
+        const deformationDuration = 300; // 300ms for deformation
+        const restorationDuration = 300; // 300ms for restoration
+        const waitBeforeRestoration = 1000; // Wait 1 second before restoring
+        
+        // Spline animation state
+        let splineRotationAngle = 0;
+        const splineRotationSpeed = 0.005;
+        let autoDeformationEnabled = false;
+        
+        // Add automatic/continuous deformation toggle
+        const autoDeformToggle = document.createElement('button');
+        autoDeformToggle.textContent = 'Enable Auto Deformation';
+        autoDeformToggle.addEventListener('click', () => {
+            autoDeformationEnabled = !autoDeformationEnabled;
+            autoDeformToggle.textContent = autoDeformationEnabled ? 
+                'Disable Auto Deformation' : 'Enable Auto Deformation';
+            autoDeformToggle.style.backgroundColor = autoDeformationEnabled ? 
+                '#dc3545' : '#007bff';
+            
+            document.getElementById('status').textContent = autoDeformationEnabled ? 
+                'Auto deformation enabled' : 'Ready';
+        });
+        document.getElementById('controls').appendChild(autoDeformToggle);
+        
+        // Add controls for restoration style
+        const restorationStyleSelect = document.createElement('select');
+        restorationStyleSelect.style.display = 'block';
+        restorationStyleSelect.style.marginTop = '10px';
+        restorationStyleSelect.style.padding = '8px';
+        restorationStyleSelect.style.borderRadius = '4px';
+        restorationStyleSelect.style.backgroundColor = '#333';
+        restorationStyleSelect.style.color = 'white';
+        restorationStyleSelect.style.border = '1px solid #555';
+        
+        const options = [
+            { value: 'wave', text: 'Wave Restoration (Bottom→Top)' },
+            { value: 'uniform', text: 'Uniform Restoration' },
+            { value: 'outside-in', text: 'Outside-In Restoration' }
+        ];
+        
+        options.forEach(option => {
+            const optElement = document.createElement('option');
+            optElement.value = option.value;
+            optElement.textContent = option.text;
+            restorationStyleSelect.appendChild(optElement);
+        });
+        
+        // Add label
+        const selectLabel = document.createElement('div');
+        selectLabel.textContent = 'Restoration Style:';
+        selectLabel.style.marginTop = '15px';
+        selectLabel.style.marginBottom = '5px';
+        selectLabel.style.fontWeight = 'bold';
+        
+        document.getElementById('controls').appendChild(selectLabel);
+        document.getElementById('controls').appendChild(restorationStyleSelect);
+        
+        // Track the selected restoration style
+        let restorationStyle = 'wave'; // Default
+        
+        restorationStyleSelect.addEventListener('change', function() {
+            restorationStyle = this.value;
+            document.getElementById('status').textContent = `Restoration style set to: ${restorationStyle}`;
+        });
+        
+        // Function to update the spline position (rotate it around Y axis)
+        function updateSplinePosition() {
+            splineRotationAngle += splineRotationSpeed;
+            
+            // Keep the spline perfectly straight along the Y-axis
+            splinePoints.forEach((point, index) => {
+                // Keep the original Y positions
+                const originalY = [
+                    -boxHeight/2 - 1,  // Start below
+                    -boxHeight/3,      // Lower section
+                    0,                      // Center
+                    boxHeight/3,       // Upper section
+                    boxHeight/2 + 1    // End above
+                ][index];
+                
+                // Set all X and Z offsets to 0 to make the spline straight
+                point.x = 0;
+                point.z = 0;
+                point.y = originalY;
+            });
+            
+            // Update the spline curve and its visualization
+            splineCurve.updateArcLengths();
+            splineGeometry.setFromPoints(splineCurve.getPoints(100));
+            
+            // Update the positions of the control point spheres
+            for (let i = 0; i < splinePoints.length; i++) {
+                scene.children.forEach(child => {
+                    if (child instanceof THREE.Mesh && 
+                        child.geometry instanceof THREE.SphereGeometry && 
+                        child.geometry.parameters.radius === 0.1) {
+                        // This is one of our control point spheres
+                        if (i < splinePoints.length && 
+                            Math.abs(child.position.distanceTo(splinePoints[i])) < 2) {
+                            child.position.copy(splinePoints[i]);
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Function to find the nearest point on the spline for a given position
+        function findNearestPointOnSpline(position) {
+            // Use the spline's getPointAt method with various t values to find the closest
+            const samples = 100;
+            let minDistance = Infinity;
+            let nearestPoint = null;
+            
+            for (let i = 0; i <= samples; i++) {
+                const t = i / samples;
+                const point = splineCurve.getPointAt(t);
+                const distance = position.distanceTo(point);
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestPoint = point.clone();
+                }
+            }
+            
+            return nearestPoint;
+        }
+        
+        // Function to deform the box towards the spline
+        function deformBox(progress) {
+            const positions = positionAttribute.array;
+            
+            // Determine min and max Y values of the box for normalization
+            const minY = -boxHeight / 2;
+            const maxY = boxHeight / 2;
+            const yRange = maxY - minY;
+            
+            // For each vertex
+            for (let i = 0; i < positions.length; i += 3) {
+                const vertexPosition = new THREE.Vector3(
+                    originalPositions[i],
+                    originalPositions[i + 1],
+                    originalPositions[i + 2]
+                );
+                
+                // Convert from local to world coordinates for spline comparison
+                const worldPosition = box.localToWorld(vertexPosition.clone());
+                
+                // Find nearest point on spline
+                const targetPoint = findNearestPointOnSpline(worldPosition);
+                
+                // Convert target back to local coordinates
+                const localTargetPoint = box.worldToLocal(targetPoint.clone());
+                
+                // Calculate distance to the spline (for weighting the deformation)
+                const distanceToSpline = worldPosition.distanceTo(targetPoint);
+                
+                // Calculate a distance-based influence factor (closer vertices move more)
+                // Use a larger influence distance for more prominent deformation
+                const maxInfluenceDistance = boxWidth * 4.5; // Increased from 3 to 4.5
+                let influenceFactor = 1.0 - Math.min(distanceToSpline / maxInfluenceDistance, 1.0);
+                
+                // Apply a stronger curve to the influence factor (cubic instead of square)
+                influenceFactor = influenceFactor * influenceFactor * influenceFactor;
+                
+                // Apply different deformation factors based on radial position
+                // This creates a more interesting, organic deformation effect
+                const radialPosition = new THREE.Vector2(worldPosition.x, worldPosition.z).length();
+                const radialFactor = Math.max(0, 1.0 - radialPosition / boxWidth);
+                
+                // Add Y-position based factor (more deformation at bottom, less at top)
+                // Get the normalized Y position (0 = bottom, 1 = top)
+                const yPosition = vertexPosition.y;
+                const normalizedY = (yPosition - minY) / yRange;
+                
+                // Create a stronger gradient (0.1 at bottom to 1.5 at top) - reversed from before
+                const yFactor = 0.4 + (normalizedY * 1.6);
+                
+                // Apply a non-linear enhancement to amplify the difference
+                const enhancedYFactor = Math.pow(yFactor, 1.2); // Reduced power for more uniform deformation
+                
+                // Combine all factors with increased overall strength
+                const combinedFactor = influenceFactor * progress * enhancedYFactor * 3.0;
+                
+                // Interpolate between original and target position based on progress and influence
+                positions[i] = originalPositions[i] * (1 - combinedFactor) + localTargetPoint.x * combinedFactor;
+                positions[i + 1] = originalPositions[i + 1] * (1 - combinedFactor) + localTargetPoint.y * combinedFactor;
+                positions[i + 2] = originalPositions[i + 2] * (1 - combinedFactor) + localTargetPoint.z * combinedFactor;
+            }
+            
+            // Update the geometry
+            positionAttribute.needsUpdate = true;
+            
+            // Also update the wireframe
+            const wireframePositions = wireframeBox.geometry.getAttribute('position');
+            wireframePositions.array.set(positions);
+            wireframePositions.needsUpdate = true;
+        }
+        
+        // Function to restore the box to its original shape
+        function restoreBox(progress) {
+            const positions = positionAttribute.array;
+            const currentPositions = new Float32Array(positions.length);
+            currentPositions.set(positions);
+            
+            // Determine min and max Y values of the cylinder for normalization
+            const minY = -boxHeight / 2;
+            const maxY = boxHeight / 2;
+            const yRange = maxY - minY;
+            
+            // Always keep visualizations hidden
+            waveRing.visible = false;
+            outsideInVisualizer.visible = false;
+            
+            if (restorationStyle === 'wave') {
+                // Calculate the wave position (moves from bottom to top)
+                // Start a bit below the box and end a bit above
+                const waveStartY = minY - 1.0;
+                const waveEndY = maxY + 1.0;
+                const waveY = waveStartY + progress * (waveEndY - waveStartY);
+                waveRing.position.y = waveY;
+                
+                // Make the wave grow in size as it moves up
+                const baseScale = 1.0;
+                const maxExtraScale = 0.5; // How much extra to grow
+                const waveScale = baseScale + maxExtraScale * progress;
+                waveRing.scale.set(waveScale, waveScale, 1);
+            } 
+            else if (restorationStyle === 'outside-in') {
+                // Update the outside-in visualizer
+                // As progress increases, the size of the box decreases
+                const currentScale = 1.0 - progress;
+                
+                // Create a new geometry with the current scale
+                outsideInVisualizer.geometry.dispose(); // Dispose old geometry
+                outsideInVisualizer.geometry = new THREE.BoxGeometry(
+                    boxWidth * currentScale, 
+                    boxHeight * currentScale, 
+                    boxDepth * currentScale,
+                    2,
+                    4,
+                    2
+                );
+                
+                // Update the position to match the box
+                outsideInVisualizer.position.copy(box.position);
+            }
+            
+            // For each vertex
+            for (let i = 0; i < positions.length; i += 3) {
+                // Get the vertex position
+                const vertexPosition = new THREE.Vector3(
+                    originalPositions[i],
+                    originalPositions[i + 1],
+                    originalPositions[i + 2]
+                );
+                
+                let vertexProgress = progress; // Default uniform progress
+                
+                if (restorationStyle === 'wave') {
+                    // Wave restoration (bottom to top)
+                    // Get the Y position for the wave calculation
+                    const vertexY = originalPositions[i + 1];
+                    const normalizedY = (vertexY - minY) / yRange;
+                    
+                    // Create a sigmoid wave that moves up the box
+                    const waveSteepness = 5.0; // Higher values create a sharper transition
+                    const wavePosition = progress * 1.5; // Moves from bottom (0) to top (1.5)
+                    const distanceFromWave = wavePosition - normalizedY;
+                    const waveEffect = 1.0 / (1.0 + Math.exp(-waveSteepness * distanceFromWave));
+                    
+                    // Apply additional speed based on Y position (bottom faster, top slower)
+                    const speedFactor = 1.5 - normalizedY * 1.2; // 1.5 to 0.3 based on Y position
+                    
+                    // Combine wave effect with speed factor
+                    vertexProgress = Math.min(waveEffect * speedFactor, 1.0);
+                } 
+                else if (restorationStyle === 'outside-in') {
+                    // Outside-in restoration (restore from the outer surface inward)
+                    // Calculate distance from cylinder center axis (in XZ plane)
+                    const distFromCenter = Math.sqrt(
+                        vertexPosition.x * vertexPosition.x + 
+                        vertexPosition.z * vertexPosition.z
+                    );
+                    
+                    // Normalize distance (0 = center, 1 = surface)
+                    const normalizedDist = Math.min(distFromCenter / boxWidth, 1.0);
+                    
+                    // Outer vertices restore faster than inner vertices
+                    // Create a moving radius threshold that starts at the outside and moves inward
+                    const radiusThreshold = 1.0 - progress;
+                    
+                    // Steepness of the transition
+                    const transitionSteepness = 8.0;
+                    
+                    // Create sigmoid-like transition at the threshold
+                    const distFromThreshold = normalizedDist - radiusThreshold;
+                    const thresholdEffect = 1.0 / (1.0 + Math.exp(-transitionSteepness * distFromThreshold));
+                    
+                    vertexProgress = Math.min(thresholdEffect, 1.0);
+                }
+                // The 'uniform' style simply uses the global progress value for all vertices
+                
+                // Interpolate back to original position with custom speed
+                positions[i] = currentPositions[i] * (1 - vertexProgress) + originalPositions[i] * vertexProgress;
+                positions[i + 1] = currentPositions[i + 1] * (1 - vertexProgress) + originalPositions[i + 1] * vertexProgress;
+                positions[i + 2] = currentPositions[i + 2] * (1 - vertexProgress) + originalPositions[i + 2] * vertexProgress;
+            }
+            
+            // Update the geometry
+            positionAttribute.needsUpdate = true;
+            
+            // Also update the wireframe
+            const wireframePositions = wireframeBox.geometry.getAttribute('position');
+            wireframePositions.array.set(positions);
+            wireframePositions.needsUpdate = true;
+        }
+        
+        // Trigger deformation
+        document.getElementById('trigger-deform').addEventListener('click', () => {
+            if (!isDeforming && !isRestoring) {
+                isDeforming = true;
+                deformationStartTime = performance.now();
+                document.getElementById('status').textContent = 'Deforming...';
+            }
+        });
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const currentTime = performance.now();
+            
+            // Update spline position if needed
+            updateSplinePosition();
+            
+            // Keep the influence radius helper positioned at the origin
+            influenceRadiusHelper.position.set(0, 0, 0);
+            
+            // Make sure outside-in visualizer matches cylinder's orientation
+            outsideInVisualizer.quaternion.copy(box.quaternion);
+            
+            // Handle auto-deformation
+            if (autoDeformationEnabled && !isDeforming && !isRestoring) {
+                isDeforming = true;
+                deformationStartTime = performance.now();
+                document.getElementById('status').textContent = 'Auto Deforming...';
+            }
+            
+            // Handle deformation animation
+            if (isDeforming) {
+                const elapsed = currentTime - deformationStartTime;
+                const progress = Math.min(elapsed / deformationDuration, 1);
+                
+                deformBox(progress);
+                
+                if (progress >= 1) {
+                    isDeforming = false;
+                    document.getElementById('status').textContent = 'Waiting before restoration...';
+                    
+                    // Schedule restoration after waiting period
+                    setTimeout(() => {
+                        isRestoring = true;
+                        restorationStartTime = performance.now();
+                        document.getElementById('status').textContent = 'Restoring...';
+                    }, waitBeforeRestoration);
+                }
+            }
+            
+            // Handle restoration animation
+            if (isRestoring) {
+                const elapsed = currentTime - restorationStartTime;
+                const progress = Math.min(elapsed / restorationDuration, 1);
+                
+                restoreBox(progress);
+                
+                if (progress >= 1) {
+                    isRestoring = false;
+                    
+                    if (autoDeformationEnabled) {
+                        // If auto-deformation is enabled, wait a moment before starting the next cycle
+                        setTimeout(() => {
+                            if (autoDeformationEnabled) {
+                                isDeforming = true;
+                                deformationStartTime = performance.now();
+                                document.getElementById('status').textContent = 'Auto Deforming...';
+                            }
+                        }, 500); // Wait 500ms before starting the next deformation
+                        
+                        document.getElementById('status').textContent = 'Auto-cycle: waiting to deform again...';
+                    } else {
+                        document.getElementById('status').textContent = 'Ready';
+                    }
+                }
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+    </script>
+</body>
+</html> 

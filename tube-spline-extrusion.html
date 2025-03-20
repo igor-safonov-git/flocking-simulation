@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Tube Spline Extrusion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #222222;
+            color: #ffffff;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        #normal-map-preview {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        #normal-map-preview canvas {
+            display: block;
+        }
+        
+        #info h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        #info p {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: block;
+            width: 100%;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 10px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+        
+        select {
+            width: 100%;
+            padding: 5px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+        }
+        
+        .value-display {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h1>Tube Spline Extrusion with Three.js</h1>
+        <p>3D tubes following mathematical curves and splines</p>
+        <p>Use mouse to rotate view, scroll to zoom</p>
+        <p>Status: <span id="status">Loading...</span></p>
+    </div>
+    
+    <div id="normal-map-preview">
+        <canvas id="normal-map-display" width="128" height="128"></canvas>
+    </div>
+    
+    <div id="controls">
+        <div class="control-group">
+            <label for="curve-type">Curve Type</label>
+            <select id="curve-type">
+                <option value="GrannyKnot">Granny Knot</option>
+                <option value="HeartCurve">Heart Curve</option>
+                <option value="VivianiCurve">Viviani Curve</option>
+                <option value="KnotCurve">Knot Curve</option>
+                <option value="HelixCurve">Helix Curve</option>
+                <option value="TrefoilKnot">Trefoil Knot</option>
+                <option value="TorusKnot">Torus Knot</option>
+                <option value="CinquefoilKnot">Cinquefoil Knot</option>
+                <option value="TrefoilPolynomialKnot">Trefoil Polynomial Knot</option>
+                <option value="FigureEightPolynomialKnot">Figure Eight Polynomial Knot</option>
+                <option value="DecoratedTorusKnot">Decorated Torus Knot</option>
+                <option value="CCurve">C Curve</option>
+                <option value="CustomSpline">Custom Spline</option>
+                <option value="Sphere">Sphere</option>
+                <option value="ThreePlanes">Three Planes</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="tube-radius">Tube Radius</label>
+            <input type="range" id="tube-radius" min="0.1" max="10" step="0.1" value="1">
+            <span id="radius-value" class="value-display">1.0</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="tube-segments-radial">Radial Segments</label>
+            <input type="range" id="tube-segments-radial" min="2" max="32" step="1" value="8">
+            <span id="radial-segments-value" class="value-display">8</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="tube-segments">Tube Segments</label>
+            <input type="range" id="tube-segments" min="20" max="500" step="10" value="100">
+            <span id="tube-segments-value" class="value-display">100</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="curve-detail">Curve Detail</label>
+            <input type="range" id="curve-detail" min="1" max="10" step="1" value="4">
+            <span id="curve-detail-value" class="value-display">4</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="scale">Scale</label>
+            <input type="range" id="scale" min="1" max="20" step="1" value="5">
+            <span id="scale-value" class="value-display">5</span>
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="closed-path" checked>
+                Closed Path
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <label for="material-type">Material Type</label>
+            <select id="material-type">
+                <option value="standard">Standard</option>
+                <option value="phong">Phong</option>
+                <option value="normal">Normal</option>
+                <option value="matcap1">Matcap 1</option>
+                <option value="matcap2">Matcap 2</option>
+                <option value="matcap3">Matcap 3</option>
+                <option value="matcap4">Matcap 4</option>
+                <option value="matcap-custom">Custom Matcap</option>
+                <option value="toon">Toon</option>
+            </select>
+        </div>
+        
+        <div class="control-group" id="custom-matcap-control" style="display: none;">
+            <label for="custom-matcap">Select Custom Matcap</label>
+            <input type="file" id="custom-matcap" accept="image/*">
+        </div>
+        
+        <div class="control-group">
+            <label for="custom-bump">Select Custom Bump Map</label>
+            <input type="file" id="custom-bump" accept="image/*">
+        </div>
+        
+        <div class="control-group">
+            <label for="material-color">Material Color</label>
+            <input type="color" id="material-color" value="#ff00ff" style="width: 100%">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="toggle-wireframe">
+                Show Wireframe
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <label for="bump-scale">Bump Scale</label>
+            <input type="range" id="bump-scale" min="-10" max="10" step="0.1" value="-1.0">
+            <span id="bump-scale-value" class="value-display">-1.0</span>
+        </div>
+        
+        <button id="animate-tube">Animate Extrusion</button>
+        <button id="toggle-rotation">Pause Rotation</button>
+    </div>
+
+    <!-- ES Module shims and import maps -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Custom script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import * as Curves from 'three/addons/curves/CurveExtras.js';
+        import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222);
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            45,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 40, 80);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 10;
+        controls.maxDistance = 500;
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x404040, 1);
+        scene.add(ambientLight);
+        
+        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x404040, 0.8);
+        scene.add(hemisphereLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+        
+        // Axes helper
+        const axesHelper = new THREE.AxesHelper(20);
+        scene.add(axesHelper);
+        
+        // Store textures
+        const textureLoader = new THREE.TextureLoader();
+        const matcapTexture1 = textureLoader.load('https://files.catbox.moe/voxgxp.png');
+        const matcapTexture2 = textureLoader.load('https://files.catbox.moe/vfat1a.png');
+        const matcapTexture3 = textureLoader.load('https://files.catbox.moe/f3uh6q.png');
+        const matcapTexture4 = textureLoader.load('https://files.catbox.moe/3w9sij.png');
+        const bumpMap = textureLoader.load('https://files.catbox.moe/1md4zn.png');
+        let customMatcapTexture = null;
+        let customBumpTexture = null;
+        
+        // Create canvas for normal map generation
+        const normalMapCanvas = document.createElement('canvas');
+        normalMapCanvas.width = 256;
+        normalMapCanvas.height = 256;
+        const normalMapCtx = normalMapCanvas.getContext('2d');
+        
+        // Create display canvas for normal map preview
+        const normalMapDisplay = document.getElementById('normal-map-display');
+        const normalMapDisplayCtx = normalMapDisplay.getContext('2d');
+        
+        // Create normal map texture
+        const normalMapTexture = new THREE.CanvasTexture(normalMapCanvas);
+        normalMapTexture.needsUpdate = true;
+        
+        // Create displacement map texture
+        const displacementMapTexture = new THREE.CanvasTexture(normalMapCanvas);
+        displacementMapTexture.needsUpdate = true;
+        
+        // Wave animation parameters
+        let waveTime = 0;
+        let waveSpeed = 0.02;
+        let blurWidth = 20;
+        let lineIntensity = 1.0;
+        let displacementScale = 0.5;
+        let numberOfLines = 1;
+        let patternType = 'movingLines';
+        let patternScale = 1.0;
+        let horizontalBlurProgress = 0;
+        
+        // Mouse tracking
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseInfluence = 4.0; // Strength of mouse influence (4x stronger)
+        let mouseRadius = 50; // Radius of mouse influence
+        
+        // Add mouse move event listener
+        window.addEventListener('mousemove', function(event) {
+            // Convert mouse position to normalized device coordinates (-1 to +1)
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+        
+        // Function to generate normal map with waves
+        function generateNormalMap() {
+            const width = normalMapCanvas.width;
+            const height = normalMapCanvas.height;
+            const imageData = normalMapCtx.createImageData(width, height);
+            const data = imageData.data;
+            
+            // Center point for circular patterns
+            const centerX = width / 2;
+            const centerY = height / 2;
+            
+            // Convert mouse position to texture coordinates
+            const mouseTexX = (mouseX + 1) * width / 2;
+            const mouseTexY = (mouseY + 1) * height / 2;
+            
+            // Get camera direction
+            const cameraDirection = new THREE.Vector3();
+            camera.getWorldDirection(cameraDirection);
+            
+            // Generate pattern
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let intensity = 0;
+                    
+                    // Calculate distance from mouse
+                    const dx = x - mouseTexX;
+                    const dy = y - mouseTexY;
+                    const distanceFromMouse = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Calculate mouse influence
+                    const mouseInfluenceFactor = Math.exp(-distanceFromMouse * distanceFromMouse / (2 * mouseRadius * mouseRadius));
+                    
+                    // Calculate camera direction influence
+                    const cameraInfluenceX = cameraDirection.x * 0.5 + 0.5;
+                    const cameraInfluenceY = cameraDirection.y * 0.5 + 0.5;
+                    
+                    switch(patternType) {
+                        case 'horizontalBlur':
+                            // Calculate distance from center lines (fixed at height/4 and width/2)
+                            const centerLineY = height / 4;
+                            const centerLineX = width / 2;
+                            const distanceFromHorizontalLine = Math.abs(y - centerLineY);
+                            const distanceFromVerticalLine = Math.abs(x - centerLineX);
+                            
+                            // Create horizontal line with fixed parameters
+                            const fixedBlurWidth = 7;
+                            const fixedIntensity = 2;
+                            const horizontalIntensity = Math.exp(-distanceFromHorizontalLine * distanceFromHorizontalLine / (2 * fixedBlurWidth * fixedBlurWidth)) * fixedIntensity;
+                            
+                            // Create vertical line with dynamic parameters from controls
+                            const verticalIntensity = Math.exp(-distanceFromVerticalLine * distanceFromVerticalLine / (2 * blurWidth * blurWidth)) * lineIntensity;
+                            
+                            // Combine both intensities with mouse and camera influence
+                            intensity = Math.max(horizontalIntensity, verticalIntensity);
+                            intensity *= (1 + mouseInfluenceFactor * mouseInfluence);
+                            intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.5);
+                            break;
+                            
+                        case 'randomLines':
+                            // Random lines pattern with varying intensities and no mouse influence
+                            // Generate lines with position based on time
+                            const linePosition = (waveTime * width) % width;
+                            let distanceFromLine = Math.abs(x - linePosition);
+                            
+                            if (distanceFromLine > width / 2) {
+                                distanceFromLine = width - distanceFromLine;
+                            }
+                            
+                            // Create random seed based on x-position that changes every few seconds
+                            const randomSeed = Math.floor(x / 10) + Math.floor(waveTime / 2);
+                            // Simple deterministic pseudo-random number generator
+                            const random = () => {
+                                const a = Math.sin(randomSeed * 12.9898) * 43758.5453;
+                                return a - Math.floor(a);
+                            };
+                            
+                            // Random intensity factor between 0.3 and 1.5
+                            const randomIntensityFactor = 0.3 + random() * 1.2;
+                            
+                            // Apply an additional blur factor (3x more blurry)
+                            const extraBlurFactor = 3.0;
+                            
+                            // Calculate intensity with random factor but no mouse influence
+                            // Use increased blur width for more blurriness
+                            intensity = Math.exp(-distanceFromLine * distanceFromLine / (2 * (blurWidth * extraBlurFactor) * (blurWidth * extraBlurFactor))) * lineIntensity * randomIntensityFactor;
+                            
+                            // Only apply camera direction influence, not mouse
+                            intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.3);
+                            break;
+                            
+                        case 'movingLines':
+                            // Single moving line pattern with mouse influence
+                            const linePosition2 = (waveTime * width) % width;
+                            let distanceFromLine2 = Math.abs(x - linePosition2);
+                            
+                            if (distanceFromLine2 > width / 2) {
+                                distanceFromLine2 = width - distanceFromLine2;
+                            }
+                            
+                            intensity = Math.exp(-distanceFromLine2 * distanceFromLine2 / (2 * blurWidth * blurWidth)) * lineIntensity;
+                            intensity *= (1 + mouseInfluenceFactor * mouseInfluence);
+                            intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.5);
+                            break;
+                            
+                        case 'circularWaves':
+                            // Circular wave pattern with mouse influence
+                            const dx2 = x - centerX;
+                            const dy2 = y - centerY;
+                            const distance = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                            const angle = Math.atan2(dy2, dx2);
+                            
+                            // Create concentric circles with wave motion
+                            const wave = Math.sin(distance * patternScale - waveTime * 10) * 0.5 + 0.5;
+                            intensity = wave * lineIntensity;
+                            intensity *= (1 + mouseInfluenceFactor * mouseInfluence);
+                            intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.5);
+                            break;
+                            
+                        case 'checkerboard':
+                            // Animated checkerboard pattern with mouse influence
+                            const size = 20 * patternScale;
+                            const xTile = Math.floor(x / size);
+                            const yTile = Math.floor(y / size);
+                            const isEven = (xTile + yTile) % 2 === 0;
+                            intensity = isEven ? lineIntensity : 0;
+                            intensity *= (1 + mouseInfluenceFactor * mouseInfluence);
+                            intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.5);
+                            break;
+                            
+                        case 'spiral':
+                            // Spiral pattern with mouse influence
+                            const dx3 = x - centerX;
+                            const dy3 = y - centerY;
+                            const angle2 = Math.atan2(dy3, dx3);
+                            const distance2 = Math.sqrt(dx3 * dx3 + dy3 * dy3);
+                            const spiral = Math.sin(angle2 * 10 + distance2 * patternScale - waveTime * 5) * 0.5 + 0.5;
+                            intensity = spiral * lineIntensity;
+                            intensity *= (1 + mouseInfluenceFactor * mouseInfluence);
+                            intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.5);
+                            break;
+                    }
+                    
+                    // Calculate normal vector components with mouse influence
+                    const normalX = intensity * 2 - 1;
+                    const normalY = 0;
+                    const normalZ = 1;
+                    
+                    // Convert to RGB (normal map format)
+                    const index = (y * width + x) * 4;
+                    data[index] = (normalX + 1) * 127.5;     // Red channel (X normal)
+                    data[index + 1] = (normalY + 1) * 127.5; // Green channel (Y normal)
+                    data[index + 2] = (normalZ + 1) * 127.5; // Blue channel (Z normal)
+                    data[index + 3] = 255;                   // Alpha channel
+                }
+            }
+            
+            normalMapCtx.putImageData(imageData, 0, 0);
+            normalMapTexture.needsUpdate = true;
+            displacementMapTexture.needsUpdate = true;
+            
+            // Update the preview display
+            normalMapDisplayCtx.drawImage(normalMapCanvas, 0, 0, normalMapDisplay.width, normalMapDisplay.height);
+        }
+        
+        // Generate initial normal map
+        generateNormalMap();
+        
+        // Add wave controls to the UI
+        const waveControls = document.createElement('div');
+        waveControls.className = 'control-group';
+        waveControls.innerHTML = `
+            <label for="pattern-type">Pattern Type</label>
+            <select id="pattern-type">
+                <option value="movingLines">Moving Lines</option>
+                <option value="circularWaves">Circular Waves</option>
+                <option value="checkerboard">Checkerboard</option>
+                <option value="spiral">Spiral</option>
+                <option value="horizontalBlur">Horizontal Blur</option>
+                <option value="randomLines">Random Lines</option>
+            </select>
+            
+            <label for="wave-speed">Animation Speed</label>
+            <input type="range" id="wave-speed" min="0" max="0.2" step="0.001" value="0.02">
+            <span id="wave-speed-value" class="value-display">0.02</span>
+            
+            <label for="blur-width">Blur Width</label>
+            <input type="range" id="blur-width" min="1" max="200" step="1" value="20">
+            <span id="blur-width-value" class="value-display">20</span>
+            
+            <label for="line-intensity">Pattern Intensity</label>
+            <input type="range" id="line-intensity" min="0.1" max="2" step="0.1" value="1.0">
+            <span id="line-intensity-value" class="value-display">1.0</span>
+            
+            <label for="pattern-scale">Pattern Scale</label>
+            <input type="range" id="pattern-scale" min="0.1" max="5" step="0.1" value="1.0">
+            <span id="pattern-scale-value" class="value-display">1.0</span>
+            
+            <label for="number-of-lines">Number of Lines</label>
+            <input type="range" id="number-of-lines" min="1" max="5" step="1" value="1">
+            <span id="number-of-lines-value" class="value-display">1</span>
+            
+            <label for="displacement-scale">Displacement Scale</label>
+            <input type="range" id="displacement-scale" min="0" max="50" step="0.5" value="0.5">
+            <span id="displacement-scale-value" class="value-display">0.5</span>
+        `;
+        document.getElementById('controls').insertBefore(waveControls, document.getElementById('animate-tube'));
+        
+        // Add event listeners for wave controls
+        document.getElementById('pattern-type').addEventListener('change', function() {
+            patternType = this.value;
+        });
+        
+        document.getElementById('pattern-scale').addEventListener('input', function() {
+            patternScale = parseFloat(this.value);
+            document.getElementById('pattern-scale-value').textContent = patternScale.toFixed(1);
+        });
+        
+        document.getElementById('wave-speed').addEventListener('input', function() {
+            waveSpeed = parseFloat(this.value);
+            document.getElementById('wave-speed-value').textContent = waveSpeed.toFixed(3);
+        });
+        
+        document.getElementById('blur-width').addEventListener('input', function() {
+            blurWidth = parseFloat(this.value);
+            document.getElementById('blur-width-value').textContent = blurWidth.toFixed(0);
+        });
+        
+        document.getElementById('line-intensity').addEventListener('input', function() {
+            lineIntensity = parseFloat(this.value);
+            document.getElementById('line-intensity-value').textContent = lineIntensity.toFixed(1);
+        });
+        
+        document.getElementById('number-of-lines').addEventListener('input', function() {
+            numberOfLines = parseInt(this.value);
+            document.getElementById('number-of-lines-value').textContent = numberOfLines;
+        });
+        
+        document.getElementById('displacement-scale').addEventListener('input', function() {
+            displacementScale = parseFloat(this.value);
+            document.getElementById('displacement-scale-value').textContent = displacementScale.toFixed(1);
+            
+            // Update displacement scale on all materials
+            tubeGroup.children.forEach(child => {
+                if (child.material && child.material.displacementScale !== undefined) {
+                    child.material.displacementScale = displacementScale;
+                    child.material.needsUpdate = true;
+                }
+            });
+        });
+        
+        // Create object groups
+        const tubeGroup = new THREE.Group();
+        scene.add(tubeGroup);
+        
+        const wireframeGroup = new THREE.Group();
+        wireframeGroup.visible = false;
+        scene.add(wireframeGroup);
+        
+        // Sphere caps for C-curve
+        const sphereCapsGroup = new THREE.Group();
+        scene.add(sphereCapsGroup);
+        
+        // Parameters
+        let curveType = 'GrannyKnot';
+        let tubeRadius = 1;
+        let tubeSegmentsRadial = 8;
+        let tubeSegments = 100;
+        let curveDetail = 4;
+        let scale = 5;
+        let closedPath = true;
+        let materialType = 'standard';
+        let materialColor = 0xff00ff;
+        
+        // Curve definitions
+        const customSpline = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-10, 0, 10),
+            new THREE.Vector3(-5, 5, 5),
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(5, -5, 5),
+            new THREE.Vector3(10, 0, 10)
+        ]);
+        
+        // Define C-shaped curve
+        const cCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(10, 0, 0),
+            new THREE.Vector3(5, 0, 0),
+            new THREE.Vector3(0, 0, 5),
+            new THREE.Vector3(-5, 0, 5),
+            new THREE.Vector3(-10, 0, 0),
+            new THREE.Vector3(-5, 0, -5),
+            new THREE.Vector3(0, 0, -5),
+            new THREE.Vector3(5, 0, -10),
+            new THREE.Vector3(10, 0, -10)
+        ], false);
+        
+        // Define sphere curve using parametric equations
+        class SphereCurve extends THREE.Curve {
+            constructor(radius = 10) {
+                super();
+                this.radius = radius;
+            }
+
+            getPoint(t) {
+                // Convert t (0 to 1) to spherical coordinates
+                const theta = t * Math.PI * 2; // Azimuthal angle
+                const phi = t * Math.PI;      // Polar angle (now varies from 0 to π)
+                
+                // Convert spherical to Cartesian coordinates
+                const x = this.radius * Math.sin(phi) * Math.cos(theta);
+                const y = this.radius * Math.sin(phi) * Math.sin(theta);
+                const z = this.radius * Math.cos(phi);
+                
+                return new THREE.Vector3(x, y, z);
+            }
+        }
+        
+        // Keep a dictionary of Curve instances
+        const curves = {
+            GrannyKnot: new Curves.GrannyKnot(),
+            HeartCurve: new Curves.HeartCurve(3.5),
+            VivianiCurve: new Curves.VivianiCurve(70),
+            KnotCurve: new Curves.KnotCurve(),
+            HelixCurve: new Curves.HelixCurve(),
+            TrefoilKnot: new Curves.TrefoilKnot(),
+            TorusKnot: new Curves.TorusKnot(20),
+            CinquefoilKnot: new Curves.CinquefoilKnot(20),
+            TrefoilPolynomialKnot: new Curves.TrefoilPolynomialKnot(14),
+            FigureEightPolynomialKnot: new Curves.FigureEightPolynomialKnot(),
+            DecoratedTorusKnot: new Curves.DecoratedTorusKnot4a(),
+            CCurve: cCurve,
+            CustomSpline: customSpline,
+            Sphere: new SphereCurve(10),
+            ThreePlanes: null // This will be handled differently
+        };
+        
+        // Function to create the tube geometry
+        function createTube() {
+            document.getElementById('status').textContent = 'Creating tube...';
+            
+            // Clear existing objects
+            while(tubeGroup.children.length > 0) {
+                const object = tubeGroup.children[0];
+                tubeGroup.remove(object);
+                object.geometry.dispose();
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(m => m.dispose());
+                } else if (object.material) {
+                    object.material.dispose();
+                }
+            }
+            
+            while(wireframeGroup.children.length > 0) {
+                const object = wireframeGroup.children[0];
+                wireframeGroup.remove(object);
+                object.geometry.dispose();
+                object.material.dispose();
+            }
+            
+            // Clear sphere caps
+            while(sphereCapsGroup.children.length > 0) {
+                const object = sphereCapsGroup.children[0];
+                sphereCapsGroup.remove(object);
+                object.geometry.dispose();
+                if (object.material) object.material.dispose();
+            }
+            
+            let geometry;
+            
+            // Create material based on selection
+            let material;
+            
+            switch(materialType) {
+                case 'phong':
+                    material = new THREE.MeshPhongMaterial({
+                        color: materialColor,
+                        specular: 0x111111,
+                        shininess: 50,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0
+                    });
+                    break;
+                    
+                case 'normal':
+                    material = new THREE.MeshNormalMaterial({
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0
+                    });
+                    break;
+                    
+                case 'matcap1':
+                    material = new THREE.MeshMatcapMaterial({
+                        matcap: matcapTexture1,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale
+                    });
+                    break;
+
+                case 'matcap2':
+                    material = new THREE.MeshMatcapMaterial({
+                        matcap: matcapTexture2,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale
+                    });
+                    break;
+
+                case 'matcap3':
+                    material = new THREE.MeshMatcapMaterial({
+                        matcap: matcapTexture3,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale
+                    });
+                    break;
+
+                case 'matcap4':
+                    material = new THREE.MeshMatcapMaterial({
+                        matcap: matcapTexture4,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale
+                    });
+                    break;
+                    
+                case 'toon':
+                    material = new THREE.MeshToonMaterial({
+                        color: materialColor,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0
+                    });
+                    break;
+                    
+                case 'matcap-custom':
+                    if (customMatcapTexture) {
+                        material = new THREE.MeshMatcapMaterial({
+                            matcap: customMatcapTexture,
+                            bumpMap: customBumpTexture || bumpMap,
+                            bumpScale: -1.0,
+                            side: THREE.DoubleSide,
+                            normalMap: normalMapTexture,
+                            normalScale: new THREE.Vector2(1, 1),
+                            displacementMap: displacementMapTexture,
+                            displacementScale: displacementScale
+                        });
+                    } else {
+                        // Fallback to standard material if no custom matcap is selected
+                        material = new THREE.MeshStandardMaterial({
+                            color: materialColor,
+                            roughness: 0.5,
+                            metalness: 0.7,
+                            side: THREE.DoubleSide,
+                            normalMap: normalMapTexture,
+                            normalScale: new THREE.Vector2(1, 1),
+                            displacementMap: displacementMapTexture,
+                            displacementScale: displacementScale,
+                            bumpMap: customBumpTexture || bumpMap,
+                            bumpScale: -1.0
+                        });
+                    }
+                    break;
+                    
+                case 'standard':
+                default:
+                    material = new THREE.MeshStandardMaterial({
+                        color: materialColor,
+                        roughness: 0.5,
+                        metalness: 0.7,
+                        side: THREE.DoubleSide,
+                        normalMap: normalMapTexture,
+                        normalScale: new THREE.Vector2(1, 1),
+                        displacementMap: displacementMapTexture,
+                        displacementScale: displacementScale,
+                        bumpMap: customBumpTexture || bumpMap,
+                        bumpScale: -1.0
+                    });
+            }
+            
+            // Special case for ThreePlanes
+            if (curveType === 'ThreePlanes') {
+                createThreePlanes(material);
+            } else if (curveType === 'Sphere') {
+                // Use SphereGeometry for sphere
+                geometry = new THREE.SphereGeometry(
+                    tubeRadius * scale,
+                    tubeSegments,
+                    tubeSegmentsRadial
+                );
+                
+                // Create the mesh and add to scene
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.scale.set(scale, scale, scale);
+                tubeGroup.add(mesh);
+                
+                // Create wireframe
+                const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+                const wireframe = new THREE.LineSegments(wireframeGeometry);
+                wireframe.material = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    linewidth: 1,
+                    opacity: 0.25,
+                    transparent: true
+                });
+                wireframe.scale.set(scale, scale, scale);
+                wireframeGroup.add(wireframe);
+            } else {
+                // Get the selected curve
+                const curve = curves[curveType];
+                
+                // Apply curve detail for certain curves
+                if (curve.setScale) {
+                    curve.setScale(curveDetail);
+                }
+                
+                // Create the tube geometry
+                geometry = new THREE.TubeGeometry(
+                    curve,
+                    tubeSegments,
+                    tubeRadius,
+                    tubeSegmentsRadial,
+                    closedPath
+                );
+                
+                // Create the mesh and add to scene
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.scale.set(scale, scale, scale);
+                tubeGroup.add(mesh);
+                
+                // Create wireframe
+                const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+                const wireframe = new THREE.LineSegments(wireframeGeometry);
+                wireframe.material = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    linewidth: 1,
+                    opacity: 0.25,
+                    transparent: true
+                });
+                wireframe.scale.set(scale, scale, scale);
+                wireframeGroup.add(wireframe);
+                
+                // Add sphere caps for C-curve if it's selected and not closed
+                if (curveType === 'CCurve' && !closedPath) {
+                    updateSphereCaps();
+                }
+            }
+            
+            document.getElementById('status').textContent = 'Ready';
+        }
+        
+        // Function to create three horizontal planes
+        function createThreePlanes(material) {
+            // Define dimensions for the planes
+            const width = 50;
+            const depth = 10;
+            
+            // Create plane geometry with extremely high segment count for ultra-detailed displacement
+            const planeGeometry = new THREE.PlaneGeometry(
+                width,
+                depth,
+                500,  // widthSegments - dramatically increased from 100 to 500
+                100   // heightSegments - dramatically increased from 20 to 100
+            );
+            
+            document.getElementById('status').textContent = 'Creating high-detail planes...';
+            
+            // Create three planes at different heights
+            for (let i = 0; i < 3; i++) {
+                const plane = new THREE.Mesh(planeGeometry, material);
+                
+                // Position the planes vertically spaced
+                plane.position.y = (i - 1) * 15; // Positions at -15, 0, and 15
+                
+                // Rotate planes to be horizontal (PlaneGeometry default is vertical)
+                plane.rotation.x = -Math.PI / 2; // Rotate to make horizontal
+                
+                // Add the plane to the group
+                plane.scale.set(scale/5, scale/5, scale/5); // Scale down to fit better in scene
+                tubeGroup.add(plane);
+                
+                // Create wireframe
+                const wireframeGeometry = new THREE.WireframeGeometry(planeGeometry);
+                const wireframe = new THREE.LineSegments(wireframeGeometry);
+                wireframe.material = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    linewidth: 1,
+                    opacity: 0.25,
+                    transparent: true
+                });
+                wireframe.position.copy(plane.position);
+                wireframe.rotation.copy(plane.rotation);
+                wireframe.scale.copy(plane.scale);
+                wireframeGroup.add(wireframe);
+            }
+        }
+        
+        // Initial tube creation
+        createTube();
+        
+        // Event listeners for controls
+        document.getElementById('curve-type').addEventListener('change', function() {
+            curveType = this.value;
+            createTube();
+        });
+        
+        document.getElementById('tube-radius').addEventListener('input', function() {
+            tubeRadius = parseFloat(this.value);
+            document.getElementById('radius-value').textContent = tubeRadius.toFixed(1);
+            createTube();
+        });
+        
+        document.getElementById('tube-segments-radial').addEventListener('input', function() {
+            tubeSegmentsRadial = parseInt(this.value);
+            document.getElementById('radial-segments-value').textContent = tubeSegmentsRadial;
+            createTube();
+        });
+        
+        document.getElementById('tube-segments').addEventListener('input', function() {
+            tubeSegments = parseInt(this.value);
+            document.getElementById('tube-segments-value').textContent = tubeSegments;
+            createTube();
+        });
+        
+        document.getElementById('curve-detail').addEventListener('input', function() {
+            curveDetail = parseInt(this.value);
+            document.getElementById('curve-detail-value').textContent = curveDetail;
+            createTube();
+        });
+        
+        document.getElementById('scale').addEventListener('input', function() {
+            scale = parseInt(this.value);
+            document.getElementById('scale-value').textContent = scale;
+            
+            // Apply scale to existing objects without recreating them
+            tubeGroup.children.forEach(child => {
+                child.scale.set(scale, scale, scale);
+            });
+            
+            wireframeGroup.children.forEach(child => {
+                child.scale.set(scale, scale, scale);
+            });
+            
+            // For sphere caps, apply scale to the entire group
+            if (curveType === 'CCurve' && !closedPath) {
+                sphereCapsGroup.scale.set(scale, scale, scale);
+            }
+        });
+        
+        // Function to update just the sphere caps without recreating the entire tube
+        function updateSphereCaps() {
+            // Clear existing sphere caps
+            while(sphereCapsGroup.children.length > 0) {
+                const object = sphereCapsGroup.children[0];
+                sphereCapsGroup.remove(object);
+                object.geometry.dispose();
+                if (object.material) object.material.dispose();
+            }
+            
+            // Get the current material from the tube
+            let material;
+            if (tubeGroup.children.length > 0) {
+                material = tubeGroup.children[0].material;
+            } else {
+                // If no tube exists yet, create a material based on current settings
+                switch(materialType) {
+                    case 'phong':
+                        material = new THREE.MeshPhongMaterial({
+                            color: materialColor,
+                            specular: 0x111111,
+                            shininess: 50,
+                            side: THREE.DoubleSide
+                        });
+                        break;
+                        
+                    case 'normal':
+                        material = new THREE.MeshNormalMaterial({
+                            side: THREE.DoubleSide
+                        });
+                        break;
+                        
+                    case 'matcap1':
+                        material = new THREE.MeshMatcapMaterial({
+                            matcap: matcapTexture1,
+                            bumpMap: bumpMap,
+                            bumpScale: -1.0,
+                            side: THREE.DoubleSide
+                        });
+                        break;
+
+                    case 'matcap2':
+                        material = new THREE.MeshMatcapMaterial({
+                            matcap: matcapTexture2,
+                            bumpMap: bumpMap,
+                            bumpScale: -1.0,
+                            side: THREE.DoubleSide
+                        });
+                        break;
+
+                    case 'matcap3':
+                        material = new THREE.MeshMatcapMaterial({
+                            matcap: matcapTexture3,
+                            bumpMap: bumpMap,
+                            bumpScale: -1.0,
+                            side: THREE.DoubleSide
+                        });
+                        break;
+
+                    case 'matcap4':
+                        material = new THREE.MeshMatcapMaterial({
+                            matcap: matcapTexture4,
+                            bumpMap: bumpMap,
+                            bumpScale: -1.0,
+                            side: THREE.DoubleSide
+                        });
+                        break;
+                        
+                    case 'toon':
+                        material = new THREE.MeshToonMaterial({
+                            color: materialColor,
+                            side: THREE.DoubleSide
+                        });
+                        break;
+                        
+                    case 'standard':
+                    default:
+                        material = new THREE.MeshStandardMaterial({
+                            color: materialColor,
+                            roughness: 0.5,
+                            metalness: 0.7,
+                            side: THREE.DoubleSide
+                        });
+                }
+            }
+            
+            // Create spheres with the same radius as the tube
+            const sphereGeometry = new THREE.SphereGeometry(tubeRadius, tubeSegmentsRadial * 4, tubeSegmentsRadial * 2);
+            
+            // Get the points from the curve
+            const points = cCurve.getPoints(50);
+            const startPoint = points[0];
+            const endPoint = points[points.length - 1];
+            
+            // Reset scale of the sphereCapsGroup
+            sphereCapsGroup.scale.set(1, 1, 1);
+            
+            // Create and add the start cap
+            const startSphere = new THREE.Mesh(sphereGeometry, material);
+            startSphere.position.copy(startPoint);
+            sphereCapsGroup.add(startSphere);
+            
+            // Create and add the end cap
+            const endSphere = new THREE.Mesh(sphereGeometry, material);
+            endSphere.position.copy(endPoint);
+            sphereCapsGroup.add(endSphere);
+            
+            // Apply scale to the entire group at once
+            sphereCapsGroup.scale.set(scale, scale, scale);
+            
+            console.log('Updated sphere caps with scale:', scale, 'at positions:', startPoint, endPoint);
+        }
+        
+        document.getElementById('closed-path').addEventListener('change', function() {
+            closedPath = this.checked;
+            createTube();
+        });
+        
+        document.getElementById('material-type').addEventListener('change', function() {
+            materialType = this.value;
+            const customMatcapControl = document.getElementById('custom-matcap-control');
+            customMatcapControl.style.display = materialType === 'matcap-custom' ? 'block' : 'none';
+            createTube();
+        });
+        
+        document.getElementById('material-color').addEventListener('input', function() {
+            materialColor = parseInt(this.value.replace('#', '0x'), 16);
+            createTube();
+        });
+        
+        document.getElementById('toggle-wireframe').addEventListener('change', function() {
+            wireframeGroup.visible = this.checked;
+        });
+        
+        document.getElementById('bump-scale').addEventListener('input', function() {
+            const bumpScale = parseFloat(this.value);
+            document.getElementById('bump-scale-value').textContent = bumpScale.toFixed(1);
+            
+            // Update bump scale on all materials that support it
+            tubeGroup.children.forEach(child => {
+                if (child.material && child.material.bumpScale !== undefined) {
+                    child.material.bumpScale = bumpScale;
+                    child.material.needsUpdate = true;
+                }
+            });
+        });
+        
+        // Add event listener for custom matcap file selection
+        document.getElementById('custom-matcap').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        if (customMatcapTexture) {
+                            customMatcapTexture.dispose();
+                        }
+                        customMatcapTexture = new THREE.Texture(img);
+                        customMatcapTexture.needsUpdate = true;
+                        customMatcapTexture.wrapS = THREE.RepeatWrapping;
+                        customMatcapTexture.wrapT = THREE.RepeatWrapping;
+                        createTube();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Add event listener for custom bump map file selection
+        document.getElementById('custom-bump').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        if (customBumpTexture) {
+                            customBumpTexture.dispose();
+                        }
+                        customBumpTexture = new THREE.Texture(img);
+                        customBumpTexture.needsUpdate = true;
+                        customBumpTexture.wrapS = THREE.RepeatWrapping;
+                        customBumpTexture.wrapT = THREE.RepeatWrapping;
+                        createTube();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Animation variables
+        let isAnimating = false;
+        
+        // Function to animate tube creation
+        function animateTube() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            document.getElementById('status').textContent = 'Animating...';
+            document.getElementById('animate-tube').disabled = true;
+            
+            // Store original values
+            const originalSegments = tubeSegments;
+            const originalRadius = tubeRadius;
+            
+            // Start with minimum values
+            tubeSegments = 10;
+            tubeRadius = 0.1;
+            
+            // Update UI
+            document.getElementById('tube-segments').value = tubeSegments;
+            document.getElementById('tube-segments-value').textContent = tubeSegments;
+            document.getElementById('tube-radius').value = tubeRadius;
+            document.getElementById('radius-value').textContent = tubeRadius.toFixed(1);
+            
+            // Create initial state
+            createTube();
+            
+            // Animation duration
+            const duration = 1500;
+            const startTime = performance.now();
+            
+            function animationStep(currentTime) {
+                // Calculate progress (0 to 1)
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Update values based on progress
+                tubeSegments = Math.floor(10 + (originalSegments - 10) * progress);
+                tubeRadius = 0.1 + (originalRadius - 0.1) * progress;
+                
+                // Update UI
+                document.getElementById('tube-segments').value = tubeSegments;
+                document.getElementById('tube-segments-value').textContent = tubeSegments;
+                document.getElementById('tube-radius').value = tubeRadius;
+                document.getElementById('radius-value').textContent = tubeRadius.toFixed(1);
+                
+                // Update the tube
+                createTube();
+                
+                // Continue animation if not complete
+                if (progress < 1) {
+                    requestAnimationFrame(animationStep);
+                } else {
+                    // Animation complete
+                    isAnimating = false;
+                    document.getElementById('status').textContent = 'Ready';
+                    document.getElementById('animate-tube').disabled = false;
+                }
+            }
+            
+            // Start animation
+            requestAnimationFrame(animationStep);
+        }
+        
+        // Animation button
+        document.getElementById('animate-tube').addEventListener('click', animateTube);
+        
+        // Toggle rotation
+        let autoRotate = true;
+        document.getElementById('toggle-rotation').addEventListener('click', function() {
+            autoRotate = !autoRotate;
+            this.textContent = autoRotate ? 'Pause Rotation' : 'Resume Rotation';
+        });
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update controls
+            controls.update();
+            
+            // Update wave time
+            waveTime += waveSpeed;
+            
+            // Update horizontal blur progress
+            if (patternType === 'horizontalBlur') {
+                horizontalBlurProgress = (Math.sin(waveTime * 2) + 1) / 2; // Oscillate between 0 and 1
+            }
+            
+            // Generate new normal map
+            generateNormalMap();
+            
+            // Auto-rotate
+            if (autoRotate) {
+                tubeGroup.rotation.y += 0.005;
+                wireframeGroup.rotation.y += 0.005;
+                sphereCapsGroup.rotation.y += 0.005;
+            }
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation loop
+        animate();
+    </script>
+</body>
+</html> 

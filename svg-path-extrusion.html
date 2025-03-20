@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js SVG Path Extrusion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        #info h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        #info p {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: block;
+            width: 100%;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h1>SVG Path Extrusion with Three.js</h1>
+        <p>2D shapes are extruded along 3D curved paths.</p>
+        <p>Use mouse to rotate view, scroll to zoom.</p>
+        <p>Status: <span id="status">Loading...</span></p>
+    </div>
+    
+    <div id="controls">
+        <div class="control-group">
+            <label for="path-type">Path Type</label>
+            <select id="path-type" style="width: 100%; padding: 5px;">
+                <option value="helix">Helix</option>
+                <option value="wave">Wave</option>
+                <option value="spiral">Spiral</option>
+                <option value="knot">Knot</option>
+                <option value="circle">Circle</option>
+                <option value="catmull">Catmull Closed</option>
+                <option value="random">Random Points</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="path-complexity">Path Complexity</label>
+            <input type="range" id="path-complexity" min="1" max="5" step="1" value="2">
+            <span id="complexity-value">2</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="steps">Steps</label>
+            <input type="range" id="steps" min="10" max="500" step="10" value="100">
+            <span id="steps-value">100</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="path-radius">Path Radius</label>
+            <input type="range" id="path-radius" min="1" max="20" step="1" value="10">
+            <span id="radius-value">10</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="path-height">Path Height</label>
+            <input type="range" id="path-height" min="1" max="20" step="1" value="5">
+            <span id="height-value">5</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="shape-size">Shape Size</label>
+            <input type="range" id="shape-size" min="1" max="20" step="1" value="5">
+            <span id="size-value">5</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="radius-segments">Radius Segments</label>
+            <input type="range" id="radius-segments" min="1" max="32" step="1" value="12">
+            <span id="segments-value">12</span>
+        </div>
+        
+        <button id="toggle-wireframe">Show Wireframe</button>
+        <button id="toggle-rotation">Pause Rotation</button>
+        <button id="change-shape">Change Shape</button>
+        <button id="change-matcap">Change Material</button>
+        <button id="animate-extrusion">Animate Extrusion</button>
+    </div>
+
+    <!-- ES Module shims and import maps -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Custom script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222);
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            45,
+            window.innerWidth / window.innerHeight,
+            1,
+            1000
+        );
+        camera.position.set(0, 50, 200);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 50;
+        controls.maxDistance = 500;
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x666666, 1);
+        scene.add(ambientLight);
+        
+        // Main directional light with shadows
+        const pointLight = new THREE.PointLight(0xffffff, 3, 0, 0);
+        pointLight.position.copy(camera.position);
+        scene.add(pointLight);
+        
+        // Load matcap texture
+        const textureLoader = new THREE.TextureLoader();
+        const matcapTexture = textureLoader.load('https://files.catbox.moe/3w9sij.png');
+        const bumpTexture = textureLoader.load('https://files.catbox.moe/1md4zn.png');
+        
+        // Colors for different materials
+        const materialColors = [
+            0xb00000, // Red
+            0xff8000, // Orange
+            0x008060, // Turquoise
+            0x6050a0, // Purple
+            0x0050a0  // Blue
+        ];
+        let currentMaterialIndex = 0;
+        let useMatcap = false; // Toggle between matcap and standard materials
+        
+        // Colors for different shapes
+        const colors = [
+            0xb00000, // Red
+            0xff8000, // Orange
+            0x008060, // Turquoise
+            0x6050a0, // Purple
+            0x0050a0  // Blue
+        ];
+        
+        // Store the current 3D objects
+        let extrudedObjects = new THREE.Group();
+        scene.add(extrudedObjects);
+        
+        // Store wireframe objects
+        let wireframeObjects = new THREE.Group();
+        wireframeObjects.visible = false;
+        scene.add(wireframeObjects);
+        
+        // Create path visualization
+        let pathVisualization = null;
+        
+        // Define 2D shapes
+        const shapes = [];
+        
+        // Simple triangle
+        const triangle = new THREE.Shape();
+        const triangleSize = 5;
+        for (let i = 0; i < 3; i++) {
+            const angle = (i / 3) * Math.PI * 2;
+            const x = Math.cos(angle) * triangleSize;
+            const y = Math.sin(angle) * triangleSize;
+            if (i === 0) {
+                triangle.moveTo(x, y);
+            } else {
+                triangle.lineTo(x, y);
+            }
+        }
+        triangle.closePath();
+        shapes.push(triangle);
+        
+        // Star shape
+        const star = new THREE.Shape();
+        const starPoints = 5;
+        const outerRadius = 10;
+        const innerRadius = 5;
+        
+        for (let i = 0; i < starPoints * 2; i++) {
+            const angle = (i / (starPoints * 2)) * Math.PI * 2;
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            
+            if (i === 0) {
+                star.moveTo(x, y);
+            } else {
+                star.lineTo(x, y);
+            }
+        }
+        star.closePath();
+        shapes.push(star);
+        
+        // Heart shape (simplified)
+        const heart = new THREE.Shape();
+        heart.moveTo(0, 5);
+        heart.bezierCurveTo(0, 8, 10, 10, 10, 0);
+        heart.bezierCurveTo(10, -10, 0, -10, 0, -5);
+        heart.bezierCurveTo(0, -10, -10, -10, -10, 0);
+        heart.bezierCurveTo(-10, 10, 0, 8, 0, 5);
+        shapes.push(heart);
+        
+        // Circle shape
+        const circle = new THREE.Shape();
+        const circleRadius = 8;
+        circle.absarc(0, 0, circleRadius, 0, Math.PI * 2, false);
+        shapes.push(circle);
+        
+        // Circle with hole
+        const circleWithHole = new THREE.Shape();
+        circleWithHole.absarc(0, 0, 8, 0, Math.PI * 2, false);
+        
+        const holePath = new THREE.Path();
+        holePath.absarc(0, 0, 4, 0, Math.PI * 2, true);
+        circleWithHole.holes.push(holePath);
+        shapes.push(circleWithHole);
+        
+        // Custom pill shape from SVG
+        const customPill = new THREE.Shape();
+        // Scale down the SVG coordinates (original viewBox: 542x410)
+        const svgScale = 0.04;
+        
+        // Extracted from the SVG data, centered and scaled
+        customPill.moveTo((542/2) * svgScale, 205 * svgScale);
+        customPill.bezierCurveTo(
+            (542) * svgScale, (211.487) * svgScale, 
+            (526.621) * svgScale, (217.903) * svgScale, 
+            (525.879) * svgScale, (224.236) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (513.675) * svgScale, (328.434) * svgScale, 
+            (403.326) * svgScale, (410) * svgScale, 
+            (269) * svgScale, (410) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (137.045) * svgScale, (410) * svgScale, 
+            (28.2277) * svgScale, (331.288) * svgScale, 
+            (12.8584) * svgScale, (229.732) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (11.6314) * svgScale, (221.624) * svgScale, 
+            (0) * svgScale, (213.371) * svgScale, 
+            (0) * svgScale, (205) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (0) * svgScale, (196.629) * svgScale, 
+            (11.6314) * svgScale, (188.376) * svgScale, 
+            (12.8584) * svgScale, (180.268) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (28.2276) * svgScale, (78.7119) * svgScale, 
+            (137.045) * svgScale, (0) * svgScale, 
+            (269) * svgScale, (0) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (403.326) * svgScale, (0) * svgScale, 
+            (513.675) * svgScale, (81.5658) * svgScale, 
+            (525.879) * svgScale, (185.764) * svgScale
+        );
+        customPill.bezierCurveTo(
+            (526.621) * svgScale, (192.097) * svgScale, 
+            (542) * svgScale, (198.513) * svgScale, 
+            (542) * svgScale, (205) * svgScale
+        );
+        customPill.closePath();
+        
+        // Center the shape (original SVG is centered at 271,205)
+        // Calculate the center of the SVG shape
+        const centerX = 271 * svgScale;
+        const centerY = 205 * svgScale;
+        
+        // Create a translation to center the shape at origin
+        const pathPoints = customPill.getPoints(50);
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        
+        // Calculate bounding box
+        for (const point of pathPoints) {
+            minX = Math.min(minX, point.x);
+            maxX = Math.max(maxX, point.x);
+            minY = Math.min(minY, point.y);
+            maxY = Math.max(maxY, point.y);
+        }
+        
+        // Calculate shape center
+        const shapeWidth = maxX - minX;
+        const shapeHeight = maxY - minY;
+        const shapeCenterX = minX + shapeWidth / 2;
+        const shapeCenterY = minY + shapeHeight / 2;
+        
+        // Create a translated version of the shape
+        const centeredPill = new THREE.Shape();
+        const translationX = -shapeCenterX;
+        const translationY = -shapeCenterY;
+        
+        // Apply translation to each curve
+        if (customPill.curves && customPill.curves.length > 0) {
+            let firstPoint = true;
+            
+            for (const curve of customPill.curves) {
+                if (curve.type === 'LineCurve') {
+                    const v1 = new THREE.Vector2(curve.v1.x + translationX, curve.v1.y + translationY);
+                    const v2 = new THREE.Vector2(curve.v2.x + translationX, curve.v2.y + translationY);
+                    
+                    if (firstPoint) {
+                        centeredPill.moveTo(v1.x, v1.y);
+                        firstPoint = false;
+                    }
+                    centeredPill.lineTo(v2.x, v2.y);
+                } 
+                else if (curve.type === 'CubicBezierCurve') {
+                    const v0 = new THREE.Vector2(curve.v0.x + translationX, curve.v0.y + translationY);
+                    const v1 = new THREE.Vector2(curve.v1.x + translationX, curve.v1.y + translationY);
+                    const v2 = new THREE.Vector2(curve.v2.x + translationX, curve.v2.y + translationY);
+                    const v3 = new THREE.Vector2(curve.v3.x + translationX, curve.v3.y + translationY);
+                    
+                    if (firstPoint) {
+                        centeredPill.moveTo(v0.x, v0.y);
+                        firstPoint = false;
+                    }
+                    centeredPill.bezierCurveTo(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
+                }
+            }
+        }
+        
+        shapes.push(centeredPill);
+        
+        // Current indices and parameters
+        let currentShapeIndex = 0;
+        let currentPathType = 'helix';
+        let pathComplexity = 5;
+        let steps = 500;
+        let pathRadius = 10;
+        let pathHeight = 5;
+        let shapeSize = 5;
+        let radiusSegments = 12;
+        
+        // Extrude settings
+        const extrudeSettings = {
+            steps: steps,
+            bevelEnabled: false,
+            extrudePath: null,
+            taper: function(t) {
+                // Scale from 0.01 at the bottom (t=0) to 1.0 at the top (t=1)
+                return 0.01 + 0.99 * t;
+            },
+            curveSegments: radiusSegments
+        };
+        
+        // Function to generate a 3D curve along which to extrude
+        function generateCurve(type) {
+            let curve;
+            
+            // Ensure we have at least 2 steps to create a valid curve
+            const curveSteps = Math.max(2, steps);
+            
+            switch(type) {
+                case 'helix':
+                    curve = new THREE.CatmullRomCurve3([]);
+                    for (let i = 0; i <= curveSteps; i++) {
+                        const t = i / curveSteps;
+                        const angle = t * Math.PI * 2 * pathComplexity;
+                        const radius = pathRadius;
+                        const x = Math.cos(angle) * radius;
+                        const y = t * pathHeight * 10 - pathHeight * 5;
+                        const z = Math.sin(angle) * radius;
+                        curve.points.push(new THREE.Vector3(x, y, z));
+                    }
+                    break;
+                    
+                case 'wave':
+                    curve = new THREE.CatmullRomCurve3([]);
+                    for (let i = 0; i <= curveSteps; i++) {
+                        const t = i / curveSteps;
+                        const x = (t * pathRadius * 4) - (pathRadius * 2);
+                        const y = Math.sin(t * Math.PI * pathComplexity) * pathHeight;
+                        const z = Math.cos(t * Math.PI * pathComplexity * 0.5) * pathHeight;
+                        curve.points.push(new THREE.Vector3(x, y, z));
+                    }
+                    break;
+                    
+                case 'spiral':
+                    curve = new THREE.CatmullRomCurve3([]);
+                    for (let i = 0; i <= curveSteps; i++) {
+                        const t = i / curveSteps;
+                        const angle = t * Math.PI * 10;
+                        const radius = t * pathRadius;
+                        const x = Math.cos(angle) * radius;
+                        const y = (t * pathHeight * 5) - (pathHeight * 2.5);
+                        const z = Math.sin(angle) * radius;
+                        curve.points.push(new THREE.Vector3(x, y, z));
+                    }
+                    break;
+                    
+                case 'knot':
+                    curve = new THREE.CatmullRomCurve3([]);
+                    for (let i = 0; i <= curveSteps; i++) {
+                        const t = i / curveSteps;
+                        const angle1 = t * Math.PI * 2;
+                        const angle2 = t * Math.PI * 4 * pathComplexity;
+                        const radius = pathRadius;
+                        const x = Math.cos(angle1) * radius + Math.cos(angle2) * pathHeight * 0.5;
+                        const y = Math.sin(angle2) * pathHeight * 0.5;
+                        const z = Math.sin(angle1) * radius;
+                        curve.points.push(new THREE.Vector3(x, y, z));
+                    }
+                    break;
+                    
+                case 'circle':
+                    curve = new THREE.CatmullRomCurve3([]);
+                    for (let i = 0; i <= curveSteps; i++) {
+                        const t = i / curveSteps;
+                        const angle = t * Math.PI * 2;
+                        const radius = pathRadius;
+                        const variation = Math.sin(t * Math.PI * pathComplexity) * pathHeight * 0.5;
+                        const x = Math.cos(angle) * (radius + variation);
+                        const y = Math.sin(t * Math.PI * pathComplexity * 2) * pathHeight;
+                        const z = Math.sin(angle) * (radius + variation);
+                        curve.points.push(new THREE.Vector3(x, y, z));
+                    }
+                    break;
+                    
+                case 'catmull':
+                    // Closed catmull-rom spline (like in the three.js example)
+                    curve = new THREE.CatmullRomCurve3([
+                        new THREE.Vector3(-pathRadius, -pathHeight * 2, pathRadius),
+                        new THREE.Vector3(-pathRadius, pathHeight * 0.5, pathRadius),
+                        new THREE.Vector3(-pathRadius, pathHeight * 2, pathRadius),
+                        new THREE.Vector3(pathRadius, pathHeight * 0.5, -pathRadius),
+                        new THREE.Vector3(pathRadius, -pathHeight * 2, -pathRadius)
+                    ]);
+                    curve.curveType = 'catmullrom';
+                    curve.closed = true;
+                    break;
+                    
+                case 'random':
+                    // Random points connected by a catmull-rom spline
+                    const randomPoints = [];
+                    for (let i = 0; i < 10; i++) {
+                        randomPoints.push(new THREE.Vector3(
+                            (i - 4.5) * pathRadius, 
+                            THREE.MathUtils.randFloat(-pathHeight, pathHeight), 
+                            THREE.MathUtils.randFloat(-pathHeight, pathHeight)
+                        ));
+                    }
+                    curve = new THREE.CatmullRomCurve3(randomPoints);
+                    break;
+                    
+                default:
+                    // Default to a simple circle
+                    curve = new THREE.CatmullRomCurve3([]);
+                    for (let i = 0; i <= curveSteps; i++) {
+                        const t = i / curveSteps;
+                        const angle = t * Math.PI * 2;
+                        const x = Math.cos(angle) * pathRadius;
+                        const y = 0;
+                        const z = Math.sin(angle) * pathRadius;
+                        curve.points.push(new THREE.Vector3(x, y, z));
+                    }
+            }
+            
+            return curve;
+        }
+        
+        // Function to visualize the path for debugging
+        function visualizePath(curve) {
+            if (pathVisualization) {
+                scene.remove(pathVisualization);
+                pathVisualization.geometry.dispose();
+                pathVisualization.material.dispose();
+            }
+            
+            // Ensure we have at least 2 points for visualization (minimum required for a line)
+            const pointCount = Math.max(2, steps);
+            
+            try {
+                const points = curve.getPoints(pointCount);
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: 0xffffff });
+                pathVisualization = new THREE.Line(geometry, material);
+                scene.add(pathVisualization);
+            } catch (error) {
+                console.warn("Error visualizing path:", error);
+                // Create an empty visualization if we can't create a proper one
+                pathVisualization = new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0.1,0)]),
+                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 })
+                );
+                scene.add(pathVisualization);
+            }
+        }
+        
+        // Function to create the extruded shape along the path
+        function createPathExtrusion() {
+            console.log("Creating extrusion along path:", currentPathType);
+            console.log("Shape index:", currentShapeIndex);
+            console.log("Parameters:", {
+                steps: steps,
+                pathRadius: pathRadius,
+                pathHeight: pathHeight,
+                shapeSize: shapeSize,
+                pathComplexity: pathComplexity
+            });
+            
+            document.getElementById('status').textContent = 'Creating extrusion...';
+            
+            // Clear existing objects
+            while(extrudedObjects.children.length > 0) {
+                const object = extrudedObjects.children[0];
+                extrudedObjects.remove(object);
+                object.geometry.dispose();
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(m => m.dispose());
+                } else if (object.material) {
+                    object.material.dispose();
+                }
+            }
+            
+            while(wireframeObjects.children.length > 0) {
+                const object = wireframeObjects.children[0];
+                wireframeObjects.remove(object);
+                object.geometry.dispose();
+                object.material.dispose();
+            }
+            
+            // Generate the 3D curve
+            const curve = generateCurve(currentPathType);
+            
+            // Visualize the path
+            visualizePath(curve);
+            
+            // Make a copy of the current shape
+            const originalShape = shapes[currentShapeIndex];
+            
+            // Create a scaled version of the shape
+            const currentShape = new THREE.Shape();
+            const scale = shapeSize / 10;
+            
+            // Copy and scale the points from the original shape
+            if (originalShape.curves && originalShape.curves.length > 0) {
+                let firstPoint = true;
+                
+                for (const curve of originalShape.curves) {
+                    if (curve.type === 'LineCurve') {
+                        // Line curve
+                        const v1 = curve.v1.clone().multiplyScalar(scale);
+                        const v2 = curve.v2.clone().multiplyScalar(scale);
+                        
+                        if (firstPoint) {
+                            currentShape.moveTo(v1.x, v1.y);
+                            firstPoint = false;
+                        }
+                        currentShape.lineTo(v2.x, v2.y);
+                    } 
+                    else if (curve.type === 'EllipseCurve') {
+                        // Arc curve
+                        const newCurve = curve.clone();
+                        newCurve.aX *= scale;
+                        newCurve.aY *= scale;
+                        newCurve.xRadius *= scale;
+                        newCurve.yRadius *= scale;
+                        
+                        if (firstPoint) {
+                            const startPoint = newCurve.getPoint(0);
+                            currentShape.moveTo(startPoint.x, startPoint.y);
+                            firstPoint = false;
+                        }
+                        
+                        // Sample points along the curve to approximate it
+                        const points = newCurve.getPoints(16);
+                        for (let i = 1; i < points.length; i++) {
+                            currentShape.lineTo(points[i].x, points[i].y);
+                        }
+                    }
+                    else if (curve.type === 'CubicBezierCurve') {
+                        // Bezier curve
+                        const v0 = curve.v0.clone().multiplyScalar(scale);
+                        const v1 = curve.v1.clone().multiplyScalar(scale);
+                        const v2 = curve.v2.clone().multiplyScalar(scale);
+                        const v3 = curve.v3.clone().multiplyScalar(scale);
+                        
+                        if (firstPoint) {
+                            currentShape.moveTo(v0.x, v0.y);
+                            firstPoint = false;
+                        }
+                        currentShape.bezierCurveTo(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
+                    }
+                }
+            }
+            
+            // Handle holes if any
+            if (originalShape.holes && originalShape.holes.length > 0) {
+                for (const hole of originalShape.holes) {
+                    const scaledHole = new THREE.Path();
+                    
+                    if (hole.curves && hole.curves.length > 0) {
+                        let firstPoint = true;
+                        
+                        for (const curve of hole.curves) {
+                            if (curve.type === 'LineCurve') {
+                                const v1 = curve.v1.clone().multiplyScalar(scale);
+                                const v2 = curve.v2.clone().multiplyScalar(scale);
+                                
+                                if (firstPoint) {
+                                    scaledHole.moveTo(v1.x, v1.y);
+                                    firstPoint = false;
+                                }
+                                scaledHole.lineTo(v2.x, v2.y);
+                            } 
+                            else if (curve.type === 'EllipseCurve') {
+                                const newCurve = curve.clone();
+                                newCurve.aX *= scale;
+                                newCurve.aY *= scale;
+                                newCurve.xRadius *= scale;
+                                newCurve.yRadius *= scale;
+                                
+                                if (firstPoint) {
+                                    const startPoint = newCurve.getPoint(0);
+                                    scaledHole.moveTo(startPoint.x, startPoint.y);
+                                    firstPoint = false;
+                                }
+                                
+                                const points = newCurve.getPoints(16);
+                                for (let i = 1; i < points.length; i++) {
+                                    scaledHole.lineTo(points[i].x, points[i].y);
+                                }
+                            }
+                            else if (curve.type === 'CubicBezierCurve') {
+                                const v0 = curve.v0.clone().multiplyScalar(scale);
+                                const v1 = curve.v1.clone().multiplyScalar(scale);
+                                const v2 = curve.v2.clone().multiplyScalar(scale);
+                                const v3 = curve.v3.clone().multiplyScalar(scale);
+                                
+                                if (firstPoint) {
+                                    scaledHole.moveTo(v0.x, v0.y);
+                                    firstPoint = false;
+                                }
+                                scaledHole.bezierCurveTo(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
+                            }
+                        }
+                    }
+                    
+                    currentShape.holes.push(scaledHole);
+                }
+            }
+            
+            // Update the extrude settings with the path
+            extrudeSettings.steps = steps;
+            extrudeSettings.extrudePath = curve;
+            extrudeSettings.curveSegments = radiusSegments;
+            
+            // Create the extruded geometry
+            const geometry = new THREE.ExtrudeGeometry(currentShape, extrudeSettings);
+            
+            // Create material
+            let material;
+            if (useMatcap) {
+                material = new THREE.MeshMatcapMaterial({
+                    matcap: matcapTexture,
+                    bumpMap: bumpTexture,
+                    bumpScale: 1,
+                    side: THREE.FrontSide,
+                    flatShading: false
+                });
+            } else {
+                material = new THREE.MeshPhongMaterial({
+                    color: materialColors[currentMaterialIndex % materialColors.length],
+                    specular: 0x111111,
+                    shininess: 30,
+                    side: THREE.FrontSide,
+                    flatShading: false
+                });
+            }
+            
+            // Create the mesh
+            const mesh = new THREE.Mesh(geometry, material);
+            extrudedObjects.add(mesh);
+            
+            // Create wireframe
+            const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+            const wireframe = new THREE.LineSegments(wireframeGeometry);
+            wireframe.material = new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                linewidth: 1
+            });
+            wireframeObjects.add(wireframe);
+            
+            document.getElementById('status').textContent = 'Ready';
+        }
+        
+        // Create initial extrusion
+        createPathExtrusion();
+        
+        // Add event listeners for controls
+        document.getElementById('path-type').addEventListener('change', function() {
+            currentPathType = this.value;
+            createPathExtrusion();
+        });
+        
+        document.getElementById('path-complexity').addEventListener('input', function() {
+            pathComplexity = parseInt(this.value);
+            document.getElementById('complexity-value').textContent = pathComplexity;
+            createPathExtrusion();
+        });
+        
+        document.getElementById('steps').addEventListener('input', function() {
+            steps = parseInt(this.value);
+            document.getElementById('steps-value').textContent = steps;
+            createPathExtrusion();
+        });
+        
+        document.getElementById('path-radius').addEventListener('input', function() {
+            pathRadius = parseInt(this.value);
+            document.getElementById('radius-value').textContent = pathRadius;
+            createPathExtrusion();
+        });
+        
+        document.getElementById('path-height').addEventListener('input', function() {
+            pathHeight = parseInt(this.value);
+            document.getElementById('height-value').textContent = pathHeight;
+            createPathExtrusion();
+        });
+        
+        document.getElementById('shape-size').addEventListener('input', function() {
+            shapeSize = parseInt(this.value);
+            document.getElementById('size-value').textContent = shapeSize;
+            createPathExtrusion();
+        });
+        
+        document.getElementById('radius-segments').addEventListener('input', function() {
+            radiusSegments = parseInt(this.value);
+            document.getElementById('segments-value').textContent = radiusSegments;
+            createPathExtrusion();
+        });
+        
+        // Toggle wireframe
+        const toggleWireframeButton = document.getElementById('toggle-wireframe');
+        toggleWireframeButton.addEventListener('click', () => {
+            wireframeObjects.visible = !wireframeObjects.visible;
+            toggleWireframeButton.textContent = wireframeObjects.visible ? 
+                'Hide Wireframe' : 'Show Wireframe';
+        });
+        
+        // Toggle rotation
+        let autoRotate = true;
+        const toggleRotationButton = document.getElementById('toggle-rotation');
+        toggleRotationButton.addEventListener('click', () => {
+            autoRotate = !autoRotate;
+            toggleRotationButton.textContent = autoRotate ? 
+                'Pause Rotation' : 'Resume Rotation';
+        });
+        
+        // Change shape
+        const changeShapeButton = document.getElementById('change-shape');
+        changeShapeButton.addEventListener('click', () => {
+            currentShapeIndex = (currentShapeIndex + 1) % shapes.length;
+            createPathExtrusion();
+        });
+        
+        // Change material
+        const changeMatcapButton = document.getElementById('change-matcap');
+        changeMatcapButton.addEventListener('click', () => {
+            if (useMatcap) {
+                currentMaterialIndex = (currentMaterialIndex + 1) % materialColors.length;
+                useMatcap = false;
+                changeMatcapButton.textContent = 'Use Matcap';
+            } else {
+                useMatcap = true;
+                changeMatcapButton.textContent = 'Use Color';
+            }
+            createPathExtrusion();
+        });
+        
+        // Animation variables
+        let isAnimating = false;
+        
+        // Function to animate the extrusion
+        function animateExtrusion() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            document.getElementById('status').textContent = 'Animating...';
+            document.getElementById('animate-extrusion').disabled = true;
+            
+            // Store original values to restore later
+            const originalSteps = steps;
+            const originalShapeSize = shapeSize;
+            
+            // Animation duration in milliseconds
+            const duration = 500;
+            const startTime = performance.now();
+            
+            // Start with minimum values to avoid errors
+            // We need at least 1 step for a valid curve, but we'll use 2 to be safe
+            steps = 2; // Minimum safe value - visually appears as almost no steps
+            shapeSize = 0.1;
+            
+            // Update UI sliders to reflect initial values
+            document.getElementById('steps').value = steps;
+            document.getElementById('steps-value').textContent = steps;
+            document.getElementById('shape-size').value = shapeSize;
+            document.getElementById('size-value').textContent = shapeSize.toFixed(1);
+            document.getElementById('radius-segments').value = radiusSegments;
+            document.getElementById('segments-value').textContent = radiusSegments;
+            
+            // Create initial state
+            createPathExtrusion();
+            
+            function animationStep(currentTime) {
+                // Calculate progress (0 to 1)
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Update values based on progress, ensuring minimum values
+                steps = Math.max(2, Math.floor(progress * 500)); // Animation from 2 to 500 steps
+                shapeSize = Math.max(0.1, progress * 5); // Also increased max size
+                
+                // Update UI sliders
+                document.getElementById('steps').value = steps;
+                document.getElementById('steps-value').textContent = steps;
+                document.getElementById('shape-size').value = shapeSize;
+                document.getElementById('size-value').textContent = shapeSize.toFixed(1);
+                document.getElementById('radius-segments').value = radiusSegments;
+                document.getElementById('segments-value').textContent = radiusSegments;
+                
+                // Update the extrusion
+                createPathExtrusion();
+                
+                // Continue animation if not complete
+                if (progress < 1) {
+                    requestAnimationFrame(animationStep);
+                } else {
+                    // Animation complete
+                    isAnimating = false;
+                    document.getElementById('status').textContent = 'Ready';
+                    document.getElementById('animate-extrusion').disabled = false;
+                }
+            }
+            
+            // Start the animation
+            requestAnimationFrame(animationStep);
+        }
+        
+        // Animation button
+        const animateExtrusionButton = document.getElementById('animate-extrusion');
+        animateExtrusionButton.addEventListener('click', animateExtrusion);
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update controls
+            controls.update();
+            
+            // Point light follows camera
+            pointLight.position.copy(camera.position);
+            
+            // Auto-rotate
+            if (autoRotate) {
+                extrudedObjects.rotation.y += 0.005;
+                wireframeObjects.rotation.y += 0.005;
+                if (pathVisualization) pathVisualization.rotation.y += 0.005;
+            }
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+    </script>
+</body>
+</html> 

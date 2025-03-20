@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Sphere with Spiral Pattern</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #18181A;
+            color: #ffffff;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <!-- ES Module shims and import maps -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Custom script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222);
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            45,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        // Position camera directly under the sphere but further away (negative y-axis)
+        camera.position.set(0, -80, 0);
+        // Set up vector to z-axis so the camera looks up at the sphere
+        camera.up.set(0, 0, 1);
+        // Look at the center of the scene
+        camera.lookAt(0, 0, 0);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x404040, 1);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(1, 1, 1).normalize();
+        scene.add(directionalLight);
+        
+        // Fixed parameters (as specified)
+        const sphereRadius = 5; // Base radius for the sphere
+        const widthSegments = 500; // Using tube segments for width segments
+        const heightSegments = 250; // Using half for height segments
+        const scale = 3;
+        const materialColor = 0xFFFFFF; // #FF00FF
+        const patternType = 'spiral';
+        const waveSpeed = 0.007;
+        const blurWidth = 7;
+        const lineIntensity = 0.2;
+        const patternScale = 3.0;
+        const numberOfLines = 1;
+        const displacementScale = 8.0;
+        
+        // Store textures
+        const textureLoader = new THREE.TextureLoader();
+        const matcapTexture3 = textureLoader.load('https://files.catbox.moe/f3uh6q.png');
+        
+        // Create canvas for normal map generation
+        const normalMapCanvas = document.createElement('canvas');
+        normalMapCanvas.width = 256;
+        normalMapCanvas.height = 256;
+        const normalMapCtx = normalMapCanvas.getContext('2d');
+        
+        // Create normal map texture
+        const normalMapTexture = new THREE.CanvasTexture(normalMapCanvas);
+        normalMapTexture.needsUpdate = true;
+        
+        // Create displacement map texture
+        const displacementMapTexture = new THREE.CanvasTexture(normalMapCanvas);
+        displacementMapTexture.needsUpdate = true;
+        
+        // Animation parameters
+        let waveTime = 0;
+        
+        // Mouse tracking
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseInfluence = 4.0;
+        let mouseRadius = 50;
+        
+        // Add mouse move event listener
+        window.addEventListener('mousemove', function(event) {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+        
+        // Function to generate normal map with spiral pattern
+        function generateNormalMap() {
+            const width = normalMapCanvas.width;
+            const height = normalMapCanvas.height;
+            const imageData = normalMapCtx.createImageData(width, height);
+            const data = imageData.data;
+            
+            // Center point for patterns
+            const centerX = width / 2;
+            const centerY = height / 2;
+            
+            // Convert mouse position to texture coordinates
+            const mouseTexX = (mouseX + 1) * width / 2;
+            const mouseTexY = (mouseY + 1) * height / 2;
+            
+            // Get camera direction
+            const cameraDirection = new THREE.Vector3();
+            camera.getWorldDirection(cameraDirection);
+            
+            // Generate pattern
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let intensity = 0;
+                    
+                    // Calculate distance from mouse
+                    const dx = x - mouseTexX;
+                    const dy = y - mouseTexY;
+                    const distanceFromMouse = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Calculate mouse influence
+                    const mouseInfluenceFactor = Math.exp(-distanceFromMouse * distanceFromMouse / (2 * mouseRadius * mouseRadius));
+                    
+                    // Calculate camera direction influence
+                    const cameraInfluenceX = cameraDirection.x * 0.5 + 0.5;
+                    const cameraInfluenceY = cameraDirection.y * 0.5 + 0.5;
+                    
+                    // Spiral pattern with mouse influence
+                    const dx3 = x - centerX;
+                    const dy3 = y - centerY;
+                    const angle = Math.atan2(dy3, dx3);
+                    const distance = Math.sqrt(dx3 * dx3 + dy3 * dy3);
+                    const spiral = Math.sin(angle * 10 + distance * patternScale - waveTime * 5) * 0.5 + 0.5;
+                    intensity = spiral * lineIntensity;
+                    intensity *= (1 + mouseInfluenceFactor * mouseInfluence);
+                    intensity *= (1 + (cameraInfluenceX + cameraInfluenceY) * 0.5);
+                    
+                    // Calculate normal vector components
+                    const normalX = intensity * 2 - 1;
+                    const normalY = 0;
+                    const normalZ = 1;
+                    
+                    // Convert to RGB (normal map format)
+                    const index = (y * width + x) * 4;
+                    data[index] = (normalX + 1) * 127.5;     // Red channel (X normal)
+                    data[index + 1] = (normalY + 1) * 127.5; // Green channel (Y normal)
+                    data[index + 2] = (normalZ + 1) * 127.5; // Blue channel (Z normal)
+                    data[index + 3] = 255;                   // Alpha channel
+                }
+            }
+            
+            normalMapCtx.putImageData(imageData, 0, 0);
+            normalMapTexture.needsUpdate = true;
+            displacementMapTexture.needsUpdate = true;
+        }
+        
+        // Create object group
+        const sphereGroup = new THREE.Group();
+        scene.add(sphereGroup);
+        
+        // Function to create the sphere
+        function createSphere() {
+            // Clear existing objects
+            while(sphereGroup.children.length > 0) {
+                const object = sphereGroup.children[0];
+                sphereGroup.remove(object);
+                object.geometry.dispose();
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(m => m.dispose());
+                } else if (object.material) {
+                    object.material.dispose();
+                }
+            }
+            
+            // Create the sphere geometry
+            const geometry = new THREE.SphereGeometry(
+                sphereRadius,
+                widthSegments,
+                heightSegments
+            );
+            
+            // Create Matcap 3 material
+            const material = new THREE.MeshMatcapMaterial({
+                color: materialColor,
+                matcap: matcapTexture3,
+                side: THREE.DoubleSide,
+                normalMap: normalMapTexture,
+                normalScale: new THREE.Vector2(1, 1),
+                displacementMap: displacementMapTexture,
+                displacementScale: displacementScale
+            });
+            
+            // Create the mesh and add to scene
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.scale.set(scale, scale, scale);
+            sphereGroup.add(mesh);
+        }
+        
+        // Generate initial normal map
+        generateNormalMap();
+        
+        // Create the sphere
+        createSphere();
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update controls
+            controls.update();
+            
+            // Update wave time
+            waveTime += waveSpeed;
+            
+            // Generate new normal map
+            generateNormalMap();
+            
+            // Auto-rotate
+            sphereGroup.rotation.y += 0.005;
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation loop
+        animate();
+    </script>
+</body>
+</html>

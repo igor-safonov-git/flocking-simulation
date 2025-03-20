@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js SVG Extrusion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        #info h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        #info p {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: block;
+            width: 100%;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h1>SVG Extrusion with Three.js</h1>
+        <p>Loaded SVG shapes are extruded into 3D objects.</p>
+        <p>Use mouse to rotate view, scroll to zoom.</p>
+        <p>Status: <span id="status">Loading...</span></p>
+    </div>
+    
+    <div id="controls">
+        <div class="control-group">
+            <label for="extrude-depth">Extrusion Depth</label>
+            <input type="range" id="extrude-depth" min="0.1" max="150" step="1" value="30">
+            <span id="depth-value">30</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="bevel-thickness">Bevel Thickness</label>
+            <input type="range" id="bevel-thickness" min="0" max="150" step="1" value="0.1">
+            <span id="bevel-value">0.1</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="bevel-size">Bevel Size</label>
+            <input type="range" id="bevel-size" min="0" max="150" step="1" value="0.1">
+            <span id="bevel-size-value">0.1</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="bevel-offset">Bevel Offset</label>
+            <input type="range" id="bevel-offset" min="-10" max="10" step="0.1" value="0">
+            <span id="bevel-offset-value">0</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="bevel-segments">Bevel Segments</label>
+            <input type="range" id="bevel-segments" min="1" max="30" step="1" value="5">
+            <span id="bevel-segments-value">5</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="corner-rounding">Corner Rounding</label>
+            <input type="range" id="corner-rounding" min="0" max="10" step="1" value="0">
+            <span id="corner-rounding-value">0</span>
+        </div>
+        
+        <button id="toggle-wireframe">Show Wireframe</button>
+        <button id="toggle-rotation">Pause Rotation</button>
+        <button id="change-shape">Change Shape</button>
+        <button id="change-matcap">Change Material</button>
+    </div>
+
+    <!-- ES Module shims and import maps -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Custom script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121212);
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 0, 10);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        
+        // Main directional light with shadows
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -10;
+        directionalLight.shadow.camera.right = 10;
+        directionalLight.shadow.camera.top = 10;
+        directionalLight.shadow.camera.bottom = -10;
+        directionalLight.shadow.bias = -0.0005;
+        scene.add(directionalLight);
+        
+        // Add a rim light from behind
+        const rimLight = new THREE.DirectionalLight(0x5099ff, 0.5);
+        rimLight.position.set(-5, 5, -5);
+        scene.add(rimLight);
+        
+        // Preload matcap texture
+        const textureLoader = new THREE.TextureLoader();
+        const matcapTextures = [
+            textureLoader.load('https://files.catbox.moe/f3uh6q.png'), // Gold
+            textureLoader.load('https://raw.githubusercontent.com/nidorx/matcaps/master/256/2E763A_78A0B7_B3D1CF_14F209.png'), // Blue-green
+            textureLoader.load('https://raw.githubusercontent.com/nidorx/matcaps/master/256/4F4E4F_B4B1B4_7A7A7D_C0BEBF.png'), // Chrome
+            textureLoader.load('https://raw.githubusercontent.com/nidorx/matcaps/master/256/C7C7D7_4C4E5A_818393_6C6C74.png'), // Steel blue
+            textureLoader.load('https://raw.githubusercontent.com/nidorx/matcaps/master/256/161B1F_88A2AB_566168_3A4449.png')  // Dark metallic
+        ];
+        let currentMatcapIndex = 0;
+        
+        // SVG shapes to cycle through
+        const svgShapes = [
+            // Heart shape
+            'M 100 30 C 60 -10 0 50 0 100 C 0 150 60 210 100 250 C 140 210 200 150 200 100 C 200 50 140 -10 100 30 Z',
+            // Star shape
+            'M 100 10 L 130 90 L 210 90 L 140 140 L 170 220 L 100 170 L 30 220 L 60 140 L -10 90 L 70 90 Z',
+            // Ring/donut shape (two paths - outer and inner)
+            'M 50 150 C 50 100 100 50 150 50 C 200 50 250 100 250 150 C 250 200 200 250 150 250 C 100 250 50 200 50 150 Z M 100 150 C 100 125 125 100 150 100 C 175 100 200 125 200 150 C 200 175 175 200 150 200 C 125 200 100 175 100 150 Z',
+            // Gear shape
+            'M 120 20 L 140 20 L 150 10 L 170 50 L 200 40 L 210 60 L 170 80 L 190 110 L 170 130 L 130 100 L 100 130 L 80 110 L 100 80 L 60 60 L 70 40 L 100 50 Z',
+            // Text-like shape ("3D")
+            'M 30 40 L 30 200 L 80 200 L 120 170 L 120 130 L 80 100 L 120 70 L 120 40 Z M 130 40 L 130 200 L 180 200 C 230 200 250 150 250 120 C 250 90 230 40 180 40 Z M 180 100 C 200 100 210 110 210 120 C 210 130 200 140 180 140 Z',
+            // Studio Text (complex SVG)
+            'M35.5638 16.0396V120.353C35.5638 131.364 38.2682 132.716 52.563 134.068V136H0.40625V134.068C14.7011 132.716 17.4055 131.364 17.4055 120.353V16.0396C17.4055 5.02873 14.7011 3.67651 0.40625 2.32431V0.392578H52.563V2.32431C38.2682 3.67651 35.5638 5.02873 35.5638 16.0396Z M105.719 96.5928C118.468 96.5928 124.65 83.8434 124.65 68.1963C124.65 50.8108 117.889 36.1296 103.98 36.1296C91.2308 36.1296 85.0493 48.879 85.0493 64.5261C85.0493 81.9116 91.8103 96.5928 105.719 96.5928ZM155.364 140.25C155.364 163.817 130.445 179.078 101.662 179.078C78.8677 179.078 59.9368 170.385 59.9368 155.124C59.9368 144.5 69.7886 137.932 79.8336 133.682C72.6862 131.364 67.4705 124.989 67.4705 117.262C67.4705 107.41 76.3565 100.07 84.8561 94.4679C75.0043 89.6386 67.6637 80.5594 67.6637 67.6168C67.6637 48.2995 83.6971 33.6184 104.946 33.6184C110.934 33.6184 116.923 34.9706 122.332 37.2886L150.342 34.9706V44.0497H148.99L129.672 41.5385C137.013 47.1405 142.035 55.0606 142.035 65.1056C142.035 84.4229 126.002 99.104 104.753 99.104C98.5714 99.104 92.1967 97.945 86.5947 95.4338C81.7653 99.8767 78.6746 104.706 78.6746 110.115C78.6746 115.137 81.379 117.649 87.9469 117.649H124.843C143.194 117.649 155.364 123.637 155.364 140.25ZM122.139 133.875H81.1858C76.7428 137.739 74.8111 143.92 74.8111 150.874C74.8111 166.521 85.6288 176.566 104.173 176.566C123.877 176.566 141.456 167.68 141.456 149.909C141.456 138.125 134.115 133.875 122.139 133.875Z M206.991 33.6184C234.036 33.6184 251.807 55.4469 251.807 83.2638C251.807 116.49 231.524 137.932 205.832 137.932C178.788 137.932 161.016 116.103 161.016 88.2863C161.016 55.0606 181.299 33.6184 206.991 33.6184ZM206.798 135.227C223.604 135.227 233.456 116.49 233.456 88.0932C233.456 62.5943 224.763 36.3228 206.025 36.3228C189.219 36.3228 179.368 55.0606 179.368 83.457C179.368 108.956 188.06 135.227 206.798 135.227Z M293.065 61.4353C301.951 43.277 308.326 33.6184 319.143 33.6184C322.62 33.6184 325.325 34.9706 326.484 36.1296V51.1971H323.78C311.996 51.1971 301.178 52.7425 293.065 62.9807V124.603C293.065 132.523 297.701 132.909 311.223 134.068V136H261.578V134.068C271.816 133.489 275.679 132.523 275.679 124.603V50.4244L262.35 44.0497V43.277L293.065 33.6184H293.838L293.065 61.4353Z M45.9951 196.165C28.6095 196.165 19.9167 208.335 19.9167 222.244C19.9167 258.367 88.3 245.424 88.3 292.945C88.3 317.092 67.051 332.932 42.7112 332.932C25.3256 332.932 10.4513 327.523 2.33798 320.376L1.17894 286.957H3.11067C7.55366 312.455 23.0075 330.034 43.0975 330.034C61.2558 330.034 72.2666 318.058 72.2666 302.024C72.2666 259.333 3.88337 275.753 3.88337 230.357C3.88337 209.881 20.8826 193.461 46.7678 193.461C60.2899 193.461 71.8803 198.097 82.1185 204.665V232.868H80.3799C76.5165 210.267 63.3807 196.165 45.9951 196.165Z M175.721 258.367V312.069C175.721 319.603 179.199 322.887 184.994 322.887C187.698 322.887 190.403 322.307 192.914 320.955L193.107 321.728C188.471 328.682 181.903 332.546 174.562 332.546C165.097 332.546 159.302 325.784 158.336 315.546C151.575 323.466 140.95 332.546 127.428 332.546C113.327 332.546 102.895 322.887 102.895 308.978C102.895 294.49 114.872 286.377 130.712 280.775L158.143 270.923V256.242C158.143 241.947 153.12 231.709 140.371 231.709C129.36 231.709 124.337 239.822 124.337 251.026C124.337 254.504 124.724 258.174 126.076 261.651L115.838 263.196C111.588 262.037 108.304 257.594 108.304 252.185C108.304 237.891 124.724 228.618 143.462 228.618C164.904 228.618 175.721 238.084 175.721 258.367ZM137.473 322.5C144.427 322.5 151.575 320.376 158.143 314.001V273.435L134.962 282.9C125.303 286.957 119.315 293.138 119.315 303.956C119.315 314.967 126.462 322.5 137.473 322.5Z M228.88 319.603C228.88 327.523 233.516 327.909 247.039 329.068V331H197.393V329.068C207.631 328.489 211.495 327.523 211.495 319.603V238.277H197.2V237.311L211.495 231.323V220.505C211.495 194.62 224.824 179.746 245.686 179.746C258.629 179.746 265.969 185.734 265.969 193.461C265.969 197.711 263.651 201.381 260.367 203.313H249.743C250.322 200.995 250.709 199.063 250.709 195.972C250.709 188.632 248.391 182.064 241.63 182.064C233.516 182.064 228.88 190.177 228.88 205.631V232.482H253.8V238.277H228.88V319.603Z M306.453 228.618C333.497 228.618 351.269 250.447 351.269 278.264C351.269 311.49 330.986 332.932 305.294 332.932C278.25 332.932 260.478 311.103 260.478 283.286C260.478 250.061 280.761 228.618 306.453 228.618ZM306.26 330.227C323.066 330.227 332.918 311.49 332.918 283.093C332.918 257.594 324.225 231.323 305.487 231.323C288.681 231.323 278.829 250.061 278.829 278.457C278.829 303.956 287.522 330.227 306.26 330.227Z M436.377 319.603V261.844C436.377 246.197 430.582 239.822 418.412 239.822C409.333 239.822 399.481 243.686 392.527 249.288V319.603C392.527 327.523 396.39 328.489 406.628 329.068V331H361.039V329.068C371.277 328.489 375.141 327.523 375.141 319.603V245.424L361.812 239.05V238.277L392.527 228.618H393.299L392.527 247.742C400.447 238.857 412.81 228.618 427.684 228.618C445.456 228.618 453.762 239.243 453.762 259.719V319.603C453.762 327.523 457.626 328.489 467.864 329.068V331H422.275V329.068C432.513 328.489 436.377 327.523 436.377 319.603Z M521.977 228.618C549.021 228.618 566.793 250.447 566.793 278.264C566.793 311.49 546.51 332.932 520.818 332.932C493.773 332.932 476.001 311.103 476.001 283.286C476.001 250.061 496.285 228.618 521.977 228.618ZM521.784 330.227C538.59 330.227 548.441 311.49 548.441 283.093C548.441 257.594 539.749 231.323 521.011 231.323C504.205 231.323 494.353 250.061 494.353 278.457C494.353 303.956 503.046 330.227 521.784 330.227Z M668.461 230.55V232.482C661.313 233.641 658.416 235.573 656.098 241.561L620.167 332.932H619.008L579.987 241.368C577.476 235.573 575.545 233.641 568.397 232.482V230.55H612.827V232.482C603.168 232.868 598.725 234.22 598.725 238.857C598.725 240.402 599.112 242.14 599.884 244.265L625.383 310.717L650.302 244.072C651.075 241.947 651.462 240.209 651.462 238.663C651.462 234.22 645.86 233.061 636.008 232.482V230.55H668.461Z',
+            // INSPIRATION text
+            'M0.382812 89.5001V6.68447H19.2625V89.5001H0.382812Z M58.3185 111.855C38.7439 111.855 29.8253 103.283 28.2037 90.7742H44.8827C45.9251 96.1022 49.7474 99.577 58.3185 99.577C68.5112 99.577 73.6075 94.249 73.6075 84.7513V75.601C70.2486 81.5081 63.0674 86.8361 54.1487 86.8361C39.4388 86.8361 27.7404 75.8327 27.7404 57.8796V57.0688C27.7404 39.6949 39.323 27.5332 54.3804 27.5332C64.2256 27.5332 70.1327 31.8187 73.6075 37.9575V28.9231H90.2865V84.7513C90.1707 102.704 78.2406 111.855 58.3185 111.855ZM59.1293 74.2111C67.932 74.2111 74.0708 67.9565 74.0708 57.648V56.8372C74.0708 46.5286 68.627 40.274 59.4767 40.274C50.0948 40.274 44.8827 46.992 44.8827 56.953V57.8796C44.8827 67.9565 50.7898 74.2111 59.1293 74.2111Z M128.595 90.7742C110.526 90.7742 96.7429 78.7283 96.7429 59.8487V58.922C96.7429 39.9266 110.526 27.5332 128.711 27.5332C146.896 27.5332 160.563 39.6949 160.563 58.5746V59.5012C160.563 78.6125 146.78 90.7742 128.595 90.7742ZM128.711 78.0333C138.093 78.0333 143.537 71.0838 143.537 59.617V58.8062C143.537 47.2236 138.093 40.274 128.711 40.274C119.445 40.274 113.885 46.992 113.885 58.5746V59.5012C113.885 71.1996 119.213 78.0333 128.711 78.0333Z M167.076 89.5001V28.9231H183.755V40.5057C187.578 32.282 193.601 28.1123 203.446 27.9965V43.633C191.052 43.633 183.755 47.4553 183.755 59.1537V89.5001H167.076Z M261.343 90.7742C238.641 90.7742 228.216 80.1182 227.174 63.5551H245.127C245.938 70.968 249.065 77.1067 261.343 77.1067C269.566 77.1067 275.01 72.5895 275.01 66.1033C275.01 59.5012 271.535 57.1847 259.374 55.3314C238.177 52.5516 229.49 46.1812 229.49 30.1972C229.49 16.0664 241.305 5.52621 259.605 5.52621C278.253 5.52621 289.141 13.8657 290.647 30.313H273.389C272.23 22.7843 267.829 19.3095 259.605 19.3095C251.382 19.3095 247.212 23.1318 247.212 28.6914C247.212 34.5986 249.876 37.3784 262.617 39.2316C282.655 41.7798 292.963 47.2236 292.963 64.3659C292.963 79.0758 280.917 90.7742 261.343 90.7742Z M316.667 90.7742C305.663 90.7742 296.397 85.4462 296.397 72.7053C296.397 58.5746 309.37 53.2466 327.902 53.2466H334.736V50.8142C334.736 43.633 332.535 39.6949 324.89 39.6949C318.288 39.6949 315.277 43.0539 314.582 48.266H298.714C299.756 33.9036 311.107 27.5332 325.933 27.5332C340.759 27.5332 351.299 33.5561 351.299 50.0034V89.5001H334.967V82.2031C331.493 87.0678 326.164 90.7742 316.667 90.7742ZM321.647 79.0758C329.06 79.0758 334.736 75.0219 334.736 68.304V63.2076H328.249C318.52 63.2076 312.844 65.2925 312.844 71.7787C312.844 76.1801 315.508 79.0758 321.647 79.0758Z M363.86 89.5001V40.8532H355.868V28.9231H363.86V21.9735C363.86 7.95856 371.968 0.777344 385.52 0.777344C389.111 0.777344 391.543 1.24065 394.207 1.9356V14.5606C392.585 13.9815 390.5 13.634 388.068 13.634C382.74 13.634 380.424 16.8772 380.424 21.626V28.9231H393.628V40.8532H380.424V89.5001H363.86Z M425.313 90.7742C407.245 90.7742 393.461 78.7283 393.461 59.8487V58.922C393.461 39.9266 407.245 27.5332 425.429 27.5332C443.614 27.5332 457.281 39.6949 457.281 58.5746V59.5012C457.281 78.6125 443.498 90.7742 425.313 90.7742ZM425.429 78.0333C434.811 78.0333 440.255 71.0838 440.255 59.617V58.8062C440.255 47.2236 434.811 40.274 425.429 40.274C416.163 40.274 410.604 46.992 410.604 58.5746V59.5012C410.604 71.1996 415.932 78.0333 425.429 78.0333Z M463.795 89.5001V28.9231H480.474V38.6525C483.601 32.5137 490.203 27.5332 500.28 27.5332C512.21 27.5332 520.665 34.5986 520.665 50.93V89.5001H503.987V53.3624C503.987 45.1387 500.628 41.2006 493.215 41.2006C486.033 41.2006 480.474 45.602 480.474 54.5206V89.5001H463.795Z M558.568 90.7742C540.499 90.7742 526.716 78.7283 526.716 59.8487V58.922C526.716 39.9266 540.499 27.5332 558.684 27.5332C576.868 27.5332 590.536 39.6949 590.536 58.5746V59.5012C590.536 78.6125 576.752 90.7742 558.568 90.7742ZM558.684 78.0333C568.066 78.0333 573.509 71.0838 573.509 59.617V58.8062C573.509 47.2236 568.066 40.274 558.684 40.274C549.418 40.274 543.858 46.992 543.858 58.5746V59.5012C543.858 71.1996 549.186 78.0333 558.684 78.0333Z M611.118 89.5001L588.996 28.9231H606.833L621.427 72.242L635.789 28.9231H652.005L629.998 89.5001H611.118Z'
+        ];
+        
+        // Current shape index
+        let currentShapeIndex = 0;
+        
+        // Store the current 3D objects
+        let extrudedObjects = new THREE.Group();
+        scene.add(extrudedObjects);
+        
+        // Store wireframe objects
+        let wireframeObjects = new THREE.Group();
+        wireframeObjects.visible = false;
+        scene.add(wireframeObjects);
+        
+        // Create a floor for shadows
+        const floorGeometry = new THREE.PlaneGeometry(30, 30);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            color: 0x333333,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -5;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        
+        // Extrusion settings
+        let extrudeSettings = {
+            depth: 30,
+            bevelEnabled: true,
+            bevelThickness: 0.1,
+            bevelSize: 0.1,
+            bevelOffset: 0,
+            bevelSegments: 5
+        };
+        
+        // Rounding settings
+        let cornerRounding = 0; // Subdivision level for rounding corners
+        
+        // Function to create a shape from SVG path
+        function createShapeFromPath(pathString) {
+            const svgData = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 350">
+                    <path d="${pathString}"/>
+                </svg>
+            `;
+            
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgData, 'image/svg+xml');
+            const svgPath = svgDoc.querySelector('path');
+            
+            // Create a shape from SVG path
+            const loader = new SVGLoader();
+            const svgPaths = loader.parse(svgDoc.documentElement.outerHTML).paths;
+            
+            return svgPaths;
+        }
+        
+        // Function to round the corners of an SVG shape
+        function roundShapeCorners(shape, radius) {
+            if (radius <= 0) return shape;
+            
+            console.log("roundShapeCorners called with radius:", radius);
+            
+            try {
+                // Get the points of the shape
+                const points = shape.getPoints(50); // Increase point sampling for smoother curves
+                console.log("Shape points count:", points.length);
+                
+                if (points.length < 3) {
+                    console.log("Not enough points to round corners");
+                    return shape; // Need at least 3 points to round
+                }
+                
+                // Create a new shape for the rounded corners
+                const roundedShape = new THREE.Shape();
+                
+                // Extract the cornerRounding value from the radius (radius already contains the scaling)
+                const effectiveCornerRounding = Math.max(1, Math.min(10, Math.round(radius)));
+                console.log("Effective corner rounding:", effectiveCornerRounding);
+                
+                // Skip corners that are already part of a curve
+                // For letters like "o", "g", "f" that have natural curves
+                const curvatureThreshold = 0.15;
+                const minAngleForRounding = 0.3;  // Minimum angle to consider for rounding
+                const maxAngleForRounding = 2.8;  // Maximum angle to consider for rounding (less than PI)
+                
+                // First detect if this is a complex shape with holes and preserve holes
+                if (shape.holes && shape.holes.length > 0) {
+                    console.log("Shape has holes:", shape.holes.length);
+                    // If shape has holes (like in 'o', 'g'), be very conservative with rounding
+                    const conservativeRadius = radius * 0.5; // Use half the radius for complex shapes
+                    
+                    // Start with the outer path
+                    processPath(points, roundedShape, conservativeRadius);
+                    
+                    // Add holes
+                    shape.holes.forEach(hole => {
+                        const holePoints = hole.getPoints(50);
+                        const roundedHole = new THREE.Path();
+                        processPath(holePoints, roundedHole, conservativeRadius);
+                        roundedShape.holes.push(roundedHole);
+                    });
+                    
+                    return roundedShape;
+                }
+                
+                // Process a normal shape without holes
+                return processPath(points, roundedShape, radius);
+            } catch (error) {
+                console.error("Error in roundShapeCorners:", error);
+                return shape; // Return original shape on error
+            }
+            
+            // Helper function to process a path with points
+            function processPath(pathPoints, targetShape, radiusValue) {
+                console.log("ProcessPath called with points:", pathPoints.length, "radius value:", radiusValue);
+                
+                try {
+                    // Calculate shape size to avoid destroying small features
+                    const box = new THREE.Box2();
+                    pathPoints.forEach(p => box.expandByPoint(p));
+                    const size = box.getSize(new THREE.Vector2());
+                    const maxSize = Math.max(size.x, size.y);
+                    console.log("Shape size:", size, "maxSize:", maxSize);
+                    
+                    // Use a simpler, more reliable approach based on the radiusValue directly
+                    // The radius value already includes all the needed scaling
+                    const actualRadius = radiusValue * 0.1; // Simple scaling without using cornerRounding variable
+                    console.log("Actual radius for rounding:", actualRadius);
+                    
+                    // Process each point for rounding
+                    let roundedCornerCount = 0;
+                    
+                    // First point handling
+                    if (pathPoints.length > 0) {
+                        targetShape.moveTo(pathPoints[0].x, pathPoints[0].y);
+                    }
+                    
+                    for (let i = 1; i < pathPoints.length - 1; i++) {
+                        const prev = pathPoints[i-1];
+                        const current = pathPoints[i];
+                        const next = pathPoints[i+1];
+                        
+                        // Try to simplify - just add quadratic curves at points
+                        // Calculate midpoints
+                        const midPoint1 = new THREE.Vector2(
+                            (prev.x + current.x) / 2,
+                            (prev.y + current.y) / 2
+                        );
+                        
+                        const midPoint2 = new THREE.Vector2(
+                            (current.x + next.x) / 2,
+                            (current.y + next.y) / 2
+                        );
+                        
+                        // Draw a segment to first midpoint
+                        targetShape.lineTo(midPoint1.x, midPoint1.y);
+                        
+                        // Draw a quadratic curve through the current point to the second midpoint
+                        targetShape.quadraticCurveTo(
+                            current.x, current.y,
+                            midPoint2.x, midPoint2.y
+                        );
+                        
+                        roundedCornerCount++;
+                    }
+                    
+                    // Close the shape
+                    if (pathPoints.length > 2) {
+                        const last = pathPoints[pathPoints.length - 1];
+                        const first = pathPoints[0];
+                        const secondToLast = pathPoints[pathPoints.length - 2];
+                        
+                        // Calculate midpoint
+                        const midPoint = new THREE.Vector2(
+                            (last.x + secondToLast.x) / 2,
+                            (last.y + secondToLast.y) / 2
+                        );
+                        
+                        // Draw to midpoint
+                        targetShape.lineTo(midPoint.x, midPoint.y);
+                        
+                        // Draw curve to close the shape
+                        targetShape.quadraticCurveTo(
+                            last.x, last.y,
+                            first.x, first.y
+                        );
+                    }
+                    
+                    console.log("Number of corners rounded:", roundedCornerCount, "out of", pathPoints.length);
+                    
+                    // Close the shape
+                    if (targetShape instanceof THREE.Shape) {
+                        targetShape.closePath();
+                    }
+                    
+                    return targetShape;
+                } catch (error) {
+                    console.error("Error in processPath:", error);
+                    
+                    // Fallback - just create a simple path with the points
+                    if (pathPoints.length > 0) {
+                        targetShape.moveTo(pathPoints[0].x, pathPoints[0].y);
+                        for (let i = 1; i < pathPoints.length; i++) {
+                            targetShape.lineTo(pathPoints[i].x, pathPoints[i].y);
+                        }
+                        if (targetShape instanceof THREE.Shape) {
+                            targetShape.closePath();
+                        }
+                    }
+                    
+                    return targetShape;
+                }
+            }
+        }
+        
+        // Function to create extruded object from SVG path
+        function createExtrudedObject(pathString) {
+            console.log("Creating extruded object with settings:", JSON.stringify(extrudeSettings));
+            console.log("Current shape index:", currentShapeIndex, "Corner rounding value:", cornerRounding);
+            
+            // Clear existing objects
+            while(extrudedObjects.children.length > 0) {
+                const object = extrudedObjects.children[0];
+                extrudedObjects.remove(object);
+                object.geometry.dispose();
+                object.material.dispose();
+            }
+            
+            while(wireframeObjects.children.length > 0) {
+                const object = wireframeObjects.children[0];
+                wireframeObjects.remove(object);
+                object.geometry.dispose();
+                object.material.dispose();
+            }
+            
+            // Get SVG paths
+            const svgPaths = createShapeFromPath(pathString);
+            
+            // Create shapes from paths
+            svgPaths.forEach((path) => {
+                const shapes = SVGLoader.createShapes(path);
+                
+                shapes.forEach((shape) => {
+                    // Apply corner rounding to the shape if needed
+                    let processedShape = shape;
+                    
+                    // Store the current cornerRounding value to avoid scope issues
+                    const currentCornerRounding = cornerRounding;
+                    
+                    if (currentCornerRounding > 0) {
+                        // Scale the radius based on the shape's bounding box to make it relative
+                        const box = new THREE.Box2();
+                        shape.getPoints().forEach(p => box.expandByPoint(p));
+                        const size = box.getSize(new THREE.Vector2());
+                        const maxSize = Math.max(size.x, size.y);
+                        
+                        // Adjust radius calculation for higher values - progressive scaling
+                        let radiusPercentage = 0.04; // 4% for lower values
+                        if (currentCornerRounding > 5) {
+                            radiusPercentage = 0.04 + (currentCornerRounding - 5) * 0.008; // Increase percentage for higher values
+                        }
+                        const radius = currentCornerRounding * maxSize * radiusPercentage;
+                        
+                        // Apply the rounded corner effect with current value
+                        processedShape = roundShapeCorners(shape, radius);
+                    }
+                    
+                    // Create a fresh copy of extrusion settings to avoid reference issues
+                    const currentExtrudeSettings = {
+                        depth: extrudeSettings.depth,
+                        bevelEnabled: extrudeSettings.bevelEnabled,
+                        bevelThickness: extrudeSettings.bevelThickness,
+                        bevelSize: extrudeSettings.bevelSize,
+                        bevelOffset: extrudeSettings.bevelOffset,
+                        bevelSegments: extrudeSettings.bevelSegments
+                    };
+                    
+                    // Create extruded geometry with current settings
+                    const geometry = new THREE.ExtrudeGeometry(processedShape, currentExtrudeSettings);
+                    
+                    // Create material
+                    const material = new THREE.MeshMatcapMaterial({
+                        matcap: matcapTextures[currentMatcapIndex],
+                        side: THREE.DoubleSide
+                    });
+                    
+                    // Create mesh
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    
+                    // Center the shape
+                    mesh.position.set(-1.5, 3, 0);
+                    mesh.scale.set(0.02, -0.02, 0.02); // SVG coordinates are usually flipped in Y
+                    
+                    extrudedObjects.add(mesh);
+                    
+                    // Create wireframe
+                    const wireframe = new THREE.WireframeGeometry(geometry);
+                    const line = new THREE.LineSegments(wireframe);
+                    line.material = new THREE.LineBasicMaterial({
+                        color: 0xffffff,
+                        linewidth: 1
+                    });
+                    line.position.copy(mesh.position);
+                    line.scale.copy(mesh.scale);
+                    wireframeObjects.add(line);
+                });
+            });
+            
+            document.getElementById('status').textContent = 'Ready';
+        }
+        
+        // Load initial shape
+        createExtrudedObject(svgShapes[currentShapeIndex]);
+        
+        // Add controls for extrusion settings
+        const extrudeDepthInput = document.getElementById('extrude-depth');
+        const depthValue = document.getElementById('depth-value');
+        
+        extrudeDepthInput.addEventListener('input', () => {
+            const value = parseFloat(extrudeDepthInput.value);
+            depthValue.textContent = value.toFixed(1);
+            extrudeSettings.depth = value;
+            console.log("Depth changed to:", value);
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        const bevelThicknessInput = document.getElementById('bevel-thickness');
+        const bevelValue = document.getElementById('bevel-value');
+        
+        bevelThicknessInput.addEventListener('input', () => {
+            const value = parseFloat(bevelThicknessInput.value);
+            bevelValue.textContent = value.toFixed(2);
+            extrudeSettings.bevelThickness = value;
+            console.log("Bevel thickness changed to:", value);
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        const bevelSizeInput = document.getElementById('bevel-size');
+        const bevelSizeValue = document.getElementById('bevel-size-value');
+        
+        bevelSizeInput.addEventListener('input', () => {
+            const value = parseFloat(bevelSizeInput.value);
+            bevelSizeValue.textContent = value.toFixed(2);
+            extrudeSettings.bevelSize = value;
+            console.log("Bevel size changed to:", value);
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        const bevelOffsetInput = document.getElementById('bevel-offset');
+        const bevelOffsetValue = document.getElementById('bevel-offset-value');
+        
+        bevelOffsetInput.addEventListener('input', () => {
+            const value = parseFloat(bevelOffsetInput.value);
+            bevelOffsetValue.textContent = value.toFixed(1);
+            extrudeSettings.bevelOffset = value;
+            console.log("Bevel offset changed to:", value);
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        const bevelSegmentsInput = document.getElementById('bevel-segments');
+        const bevelSegmentsValue = document.getElementById('bevel-segments-value');
+        
+        bevelSegmentsInput.addEventListener('input', () => {
+            const value = parseInt(bevelSegmentsInput.value);
+            bevelSegmentsValue.textContent = value;
+            extrudeSettings.bevelSegments = value;
+            console.log("Bevel segments changed to:", value);
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        // Add corner rounding control
+        const cornerRoundingInput = document.getElementById('corner-rounding');
+        const cornerRoundingValue = document.getElementById('corner-rounding-value');
+        
+        cornerRoundingInput.addEventListener('input', () => {
+            const value = parseInt(cornerRoundingInput.value);
+            cornerRoundingValue.textContent = value;
+            cornerRounding = value;
+            document.getElementById('status').textContent = 'Applying corner rounding...';
+            console.log("Corner rounding changed to:", value);
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        // Initialize with current values
+        depthValue.textContent = extrudeSettings.depth.toFixed(1);
+        bevelValue.textContent = extrudeSettings.bevelThickness.toFixed(2);
+        bevelSizeValue.textContent = extrudeSettings.bevelSize.toFixed(2);
+        bevelOffsetValue.textContent = extrudeSettings.bevelOffset.toFixed(1);
+        bevelSegmentsValue.textContent = extrudeSettings.bevelSegments;
+        
+        // Add button controls
+        const toggleWireframeButton = document.getElementById('toggle-wireframe');
+        toggleWireframeButton.addEventListener('click', () => {
+            wireframeObjects.visible = !wireframeObjects.visible;
+            toggleWireframeButton.textContent = wireframeObjects.visible ? 
+                'Hide Wireframe' : 'Show Wireframe';
+        });
+        
+        let autoRotate = true;
+        const toggleRotationButton = document.getElementById('toggle-rotation');
+        toggleRotationButton.addEventListener('click', () => {
+            autoRotate = !autoRotate;
+            toggleRotationButton.textContent = autoRotate ? 
+                'Pause Rotation' : 'Resume Rotation';
+        });
+        
+        const changeShapeButton = document.getElementById('change-shape');
+        changeShapeButton.addEventListener('click', () => {
+            currentShapeIndex = (currentShapeIndex + 1) % svgShapes.length;
+            document.getElementById('status').textContent = 'Loading new shape...';
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        // Add material cycling button
+        const changeMatcapButton = document.getElementById('change-matcap');
+        changeMatcapButton.addEventListener('click', () => {
+            currentMatcapIndex = (currentMatcapIndex + 1) % matcapTextures.length;
+            document.getElementById('status').textContent = 'Changing material...';
+            createExtrudedObject(svgShapes[currentShapeIndex]);
+        });
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Auto-rotate the objects
+            if (autoRotate) {
+                extrudedObjects.rotation.y += 0.005;
+                wireframeObjects.rotation.y += 0.005;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+    </script>
+</body>
+</html> 

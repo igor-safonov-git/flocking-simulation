@@ -1,0 +1,16 @@
+{
+  "name": "boids-pixi",
+  "version": "1.0.0",
+  "description": "Boids simulation using PixiJS",
+  "main": "index.js",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "pixi.js": "^7.4.0"
+  },
+  "devDependencies": {
+    "vite": "^5.1.0"
+  }
+} 
