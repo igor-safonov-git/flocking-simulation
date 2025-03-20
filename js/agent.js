@@ -17,17 +17,6 @@ class Agent {
 
 	static average = vec2.create();
 
-	// Add to static properties
-	static vectorPool = Array(10).fill().map(() => vec2.create());
-	static poolIndex = 0;
-
-	// Method to get a temporary vector
-	static getTempVector() {
-		const vec = Agent.vectorPool[Agent.poolIndex];
-		Agent.poolIndex = (Agent.poolIndex + 1) % Agent.vectorPool.length;
-		return vec;
-	}
-
 	constructor() {
 		const angle = random(0, Math.PI * 2);
 		const r = random(maxSpeed / 2, maxSpeed);
