@@ -73,7 +73,7 @@ class Agent {
 	}
 
 	separation(agents, dsq) {
-		vec2.zero(Agent.avgVec);
+		vec2.set(Agent.avgVec, 0, 0);
 		
 		if (agents.length === 0) return Agent.avgVec;
 
@@ -92,7 +92,7 @@ class Agent {
 	}
 
 	cohesion(agents) {
-		vec2.zero(Agent.avgVec);
+		vec2.set(Agent.avgVec, 0, 0);
 		
 		if (agents.length === 0) return Agent.avgVec;
 
@@ -108,7 +108,7 @@ class Agent {
 	}
 
 	align(agents) {
-		vec2.zero(Agent.avgVec);
+		vec2.set(Agent.avgVec, 0, 0);
 		
 		if (agents.length === 0) return Agent.avgVec;
 
@@ -127,7 +127,7 @@ class Agent {
 		const agents = arrays[0];
 		const distancesSq = arrays[1];
 
-		vec2.zero(this.acceleration);
+		vec2.set(this.acceleration, 0, 0);
 
 		const sV = this.separation(agents, distancesSq);
 		vec2.scale(Agent.tmpVec, sV, sSliderValue);
