@@ -9,11 +9,11 @@
  */
 
 // Global variables - START ====
-let DEBUG = false;
+let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = window.innerWidth;
-const height = window.innerHeight;
+const width = window.innerWidth - 24;
+const height = 500;
 
 const flock = [];
 const flockPool = [];
