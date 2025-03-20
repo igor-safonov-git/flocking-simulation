@@ -230,23 +230,16 @@ class Agent {
 		}
 
 		const sState = (this.debug ? 1 : 0) + (this.isNear ? 2 : 0);
-		// Only update if state changed or speed changed very significantly
-		const currentSpeed = vec2.length(this.velocity);
-		if (this.shapeState !== sState || Math.abs(this.lastSpeed - currentSpeed) > maxSpeed / 3) {
-			this.shapeState = sState;
-			this.lastSpeed = currentSpeed;
+		const color = this.debug ? Agent.lineColor[sState] : this.getColor();
 
-			const color = this.debug ? Agent.lineColor[sState] : this.getColor();
+		this.shape.clear();
+		this.shape.beginFill(color, 1);
+		this.shape.drawCircle(0, 0, 4);
+		this.shape.endFill();
 
-			this.shape.clear();
-			this.shape.beginFill(color, 1);
-			this.shape.drawCircle(0, 0, 4);
-			this.shape.endFill();
-
-			if (this.debug) {
-				this.shape.lineStyle(1, 0xFFFFFF, 1);
-				this.shape.drawCircle(0, 0, perceptionRadius);
-			}
+		if (this.debug) {
+			this.shape.lineStyle(1, 0xFFFFFF, 1);
+			this.shape.drawCircle(0, 0, perceptionRadius);
 		}
 	}
 }
