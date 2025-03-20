@@ -1,0 +1,45 @@
+html, body {
+	background-color: #333;
+	color: #eee;
+	margin: 10px;
+
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+canvas {
+	display: block;
+	margin-bottom: 10px;
+}
+
+.slider, .sliderValue {
+	vertical-align: -2px;
+}
+
+.sliderValue {
+	overflow: hidden;
+	display: inline-block;
+	margin-left: 4px;
+	text-align: center;
+	width: 30px;
+	background: #222;
+	border-radius: 3px;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+.sliderLabel, .checkbox {
+	margin: 0 8px 0 0;
+	display: inline-block;
+}
+
+.sliderValue, .checkbox {
+	margin-right: 20px;
+}
+
+.checkbox input {
+	margin-right: 8px;
+}
+
+.agent {
+	margin-top: 10px;
+}

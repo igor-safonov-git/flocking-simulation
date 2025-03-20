@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flocking Simulation</title>
+    <style>
+        body {
+            background-color: #18181A;
+            margin: 0;
+            color: white;
+        }
+    </style>
+    <link type="text/css" rel="stylesheet" href="./js/main.css">
+    <script src="./js/pixi.min.js"></script>
+    <script src="./js/minimalUI.js"></script>
+    <script src="./js/victor.min.js"></script>
+    <script src="./js/space_subdiv.js"></script>
+</head>
+<body>
+    <script src="./js/agent.js"></script>
+    <script src="./js/index.js"></script>
+    <canvas width="2000" height="1400" style="touch-action: none; width: 100%; height: 700px;"></canvas>
+    <div class="sliderLabel">Alignment:</div>
+    <input class="slider" type="range" min="0" max="5" step="0.1">
+    <div class="sliderValue">1</div>
+    <div class="sliderLabel">Cohesion:</div>
+    <input class="slider" type="range" min="0" max="5" step="0.1">
+    <div class="sliderValue">1</div>
+    <div class="sliderLabel">Separation:</div>
+    <input class="slider" type="range" min="0" max="5" step="0.1">
+    <div class="sliderValue">1</div>
+    <div class="checkbox">
+        <input type="checkbox" id="nnrjnh27fvc">
+        <label for="nnrjnh27fvc">Debug</label>
+    </div>
+    <div class="checkbox">
+        <input type="checkbox" id="ia0hxdjo6em">
+        <label for="ia0hxdjo6em">Accurate</label>
+    </div>
+    <br>
+    <div class="sliderLabel agent">Agent count:</div>
+    <input class="slider" type="range" min="100" max="10000" step="100">
+    <div class="sliderValue">2000</div>
+</body>
+</html> 
