@@ -8,11 +8,12 @@
  *   space_subdiv.js is a basic space subdivision library by me
  */
 
+
 // Global variables - START ====
 let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = window.innerWidth;
+const width = 1000;
 const height = 300;
 
 const height1 = 0;
@@ -58,7 +59,7 @@ const app = new PIXI.Application({
 	transparent: false,
 	resolution: window.devicePixelRatio || 1,
 	autoDensity: true,
-	backgroundColor: 0x18181A
+	backgroundColor: 0x171719
 });
 
 //Add the canvas that Pixi automatically created for you to the HTML document
