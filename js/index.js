@@ -34,8 +34,8 @@ let alignValue, cohesionValue, separationValue;
 
 // Add mouse position tracking
 const mouse = vec2.create();
-const mouseRadius = 100;
-const mouseForce = 2;
+const mouseRadius = 150;
+const mouseForce = 4;
 let isMouseInCanvas = false;
 
 /**
@@ -58,7 +58,7 @@ const app = new PIXI.Application({
 	transparent: false,
 	resolution: window.devicePixelRatio || 1,
 	autoDensity: true,
-	backgroundColor: 0x212124
+	backgroundColor: 0x1C1C1F
 });
 
 //Add the canvas that Pixi automatically created for you to the HTML document

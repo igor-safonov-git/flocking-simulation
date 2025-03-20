@@ -4,11 +4,11 @@ class Agent {
 	static fillColor = [0, 0, 0, 0];
 	// Reduce to just 5 colors
 	static colorCache = [
-		0x18181A,  // Darkest
-		0x444444,  // Dark
-		0x666666,  // Medium
-		0x999999,  // Light
-		0xF0F0F0   // Brightest
+		0x1C1C1F,  // Darkest
+		0x212124,  // Dark
+		0x303033,  // Medium
+		0x76767D,  // Light
+		0xD4D4DA// Brightest
 	];
 
 	// Static vectors for reuse
@@ -169,7 +169,8 @@ class Agent {
 			vec2.subtract(Agent.tmpVec, this.position, mouse);
 			
 			if (dist > 0) {
-				vec2.scale(Agent.tmpVec, Agent.tmpVec, 1 / dist);
+				const force = Math.pow(1 - dist / r2, 2);
+				vec2.scale(Agent.tmpVec, Agent.tmpVec, force * 2);
 			}
 			
 			const len = vec2.length(Agent.tmpVec);
