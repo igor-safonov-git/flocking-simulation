@@ -145,12 +145,14 @@ function updateCount(c) {
 	}
 }
 
+const deltaVec = vec2.create();
+
 function gameLoop(delta) {
-	const deltaV = new Victor(delta, delta);
+	vec2.set(deltaVec, delta, delta);
 
 	flock.forEach(agent => {
-		agent.update(deltaV);
-	})
+		agent.update(deltaVec);
+	});
 
 	// DEBUG
 	subdiv.debugGrid();
