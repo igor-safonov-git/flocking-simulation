@@ -58,7 +58,7 @@ const app = new PIXI.Application({
 	transparent: false,
 	resolution: window.devicePixelRatio || 1,
 	autoDensity: true,
-	backgroundColor: 0x18181A
+	backgroundColor: 0x212124;
 });
 
 //Add the canvas that Pixi automatically created for you to the HTML document
