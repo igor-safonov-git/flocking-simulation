@@ -4,9 +4,9 @@ class Agent {
 	static fillColor = [0, 0, 0, 0];
 	// Reduce to just 3 colors
 	static colorCache = [
-		0x111111,  // Slow - darkest
+		0x18181A,  // Slow - darkest
 		0x666666,  // Medium
-		0xFFFFFF   // Fast - brightest
+		0xF1F1F1   // Fast - brightest
 	];
 
 	// Static vectors for reuse

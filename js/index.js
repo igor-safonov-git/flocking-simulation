@@ -12,17 +12,17 @@
 let DEBUG = true;
 let ACCURATE = false; // If this is `false` then we are using `maxNearCount` to reduce calculation.
 
-const width = window.innerWidth - 24;
+const width = 500;
 const height = 500;
-const height1 = 0;
 
+const height1 = 0;
 const flock = [];
 const flockPool = [];
 // Agent count
 let count = 1800;
 const maxCount = 10000;
 // Maximum number which is used for one agent to steer to.
-const maxFlockCount = 300;
+const maxFlockCount = 80;
 
 // Also good for speed up things, if we reduce the radius
 const perceptionRadius = 40;
