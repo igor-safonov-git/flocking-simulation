@@ -17,7 +17,7 @@ const height = window.innerHeight;
 const flock = [];
 const flockPool = [];
 // Agent count
-let count = 1800;
+let count = 2500;
 const maxCount = 10000;
 // Maximum number which is used for one agent to steer to.
 const maxFlockCount = 100;
