@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,21 +9,19 @@
             margin: 0;
             overflow: hidden;
         }
-
-        canvas {
+        canvasxw {
             width: 100%;
             height: 100%;
         }
     </style>
 </head>
-
 <body>
     <script type="importmap">
         {
             "imports": {
                 "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
                 "three/examples/jsm/controls/OrbitControls.js": "https://unpkg.com/three@0.162.0/examples/jsm/controls/OrbitControls.js",
-                "@splinetool/loader": "https://unpkg.com/@splinetool/loader@1.0.0/build/loader.js"
+                "@splinetool/loader": "https://unpkg.com/@splinetool/loader@1.0.0/build/SplineLoader.module.js"
             }
         }
     </script>
@@ -43,12 +40,9 @@
 
         // spline scene
         const loader = new SplineLoader();
-        loader.load(
-            'https://prod.spline.design/TJbr5AsUDecVuhz0/scene.splinecode',
-            (splineScene) => {
-                scene.add(splineScene);
-            }
-        );
+        loader.load('https://prod.spline.design/TJbr5AsUDecVuhz0/scene.splinecode', (splineScene) => {
+            scene.add(splineScene);
+        });
 
         // renderer
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -79,8 +73,6 @@
             controls.update();
             renderer.render(scene, camera);
         }
-
     </script>
 </body>
-
-</html>s
+</html>
