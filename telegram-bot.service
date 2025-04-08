@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram Link Summarizer Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/telegram-bot
+Environment="PATH=/root/telegram-bot/venv/bin"
+ExecStart=/root/telegram-bot/venv/bin/python /root/telegram-bot/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 
