@@ -27,9 +27,11 @@ class Agent {
 
 		this.isNear = false; // near to the first agent
 		
-		subdiv.update(this); // update the item in the buckets
-
+		// create sprite shape using pre-generated boid texture
+		this.shape = new PIXI.Sprite(boidTex);
+		this.shape.anchor.set(0.5);
 		this.show();
+		subdiv.update(this);
 	}
 
 	getNearAgents() {
@@ -210,7 +212,7 @@ class Agent {
 	}
 
 	show() {
-		this.drawShape();
+			this.shape.tint = this.getColor();
 
 		this.shape.x = this.position[0];
 		this.shape.y = this.position[1];

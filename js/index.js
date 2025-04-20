@@ -61,6 +61,22 @@ const app = new PIXI.Application({
 
 //Add the canvas that Pixi automatically created for you to the HTML document
 document.body.appendChild(app.view);
+// Pre-generate boid texture from a white circle and set up optimized container
+const gfx = new PIXI.Graphics();
+gfx.beginFill(0xffffff);
+gfx.drawCircle(0, 0, 4);
+gfx.endFill();
+const boidTex = app.renderer.generateTexture(gfx);
+
+const boidContainer = new PIXI.ParticleContainer(maxCount, {
+  position: true,
+  rotation: true,
+  tint:     true,
+});
+app.stage.addChild(boidContainer);
+// Redirect stage child management to boid container for performance
+app.stage.addChild = boidContainer.addChild.bind(boidContainer);
+app.stage.removeChild = boidContainer.removeChild.bind(boidContainer);
 
 for (let i = 0; i < maxCount; i++) {
 	flockPool.push(new Agent());
