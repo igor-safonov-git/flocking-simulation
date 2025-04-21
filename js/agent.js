@@ -3,8 +3,8 @@ class Agent {
 	static lineColor = [0xFFFFFF, 0xFFFFFF, 0xffFFff, 0xFFffFF];
 	static fillColor = [0, 0, 0, 0];
 	// Reduce to just 5 colors
-	static colorCache = [
-		0x1C1C1F,  // Darkest
+   static colorCache = [
+       0x303033,  // Darkest (raised brightness to contrast background)
 		0x303033,  // Medium
 		0x76767D,  // Light
 		0xC6C6CE,
@@ -35,29 +35,30 @@ class Agent {
 	}
 
 	getNearAgents() {
-		const as = []; // Agents
-		const dsq = []; // Distances
+		const as = [];
+		const dsq = [];
 		const r2 = perceptionRadius * perceptionRadius;
 		const near = subdiv.getNearItems(this);
 
-		let nearLength = 0;
-		near.forEach(a => nearLength += a.length);
-		// Limit the max agent which will be used for steering.
-		const step = nearLength > maxFlockCount && !ACCURATE ? nearLength / maxFlockCount : 1;
+		// Count total nearby slots across buckets
+		let total = 0;
+		for (const bucket of near) {
+			total += bucket.length;
+		}
+		// Determine sampling step to limit steering cost
+		const step = total > maxFlockCount && !ACCURATE ? total / maxFlockCount : 1;
 
-		near.forEach(arr => {
-			for (let i = 0; i < arr.length; i += step) {
-				const a = arr[Math.floor(i)];
+		for (const bucket of near) {
+			for (let i = 0; i < bucket.length; i += step) {
+				const a = bucket[Math.floor(i)];
 				const d = vec2.squaredDistance(this.position, a.position);
 				if (a !== this && d < r2) {
 					as.push(a);
 					dsq.push(d);
-
-					a.isNear |= this.debug;
+					a.isNear = a.isNear || this.debug;
 				}
-			};
-		});	
-		
+			}
+		}
 		return [as, dsq];
 	}
 
@@ -76,24 +77,27 @@ class Agent {
 		}
 	}
 
-	separation(agents, dsq) {
-		vec2.set(Agent.avgVec, 0, 0);
-		
-		if (agents.length === 0) return Agent.avgVec;
+		separation(agents, dsq) {
+			vec2.set(Agent.avgVec, 0, 0);
 
-		agents.forEach((a, i) => {
-			vec2.subtract(Agent.tmpVec, this.position, a.position);
-			if (dsq[i] > 0) {
-				vec2.scale(Agent.tmpVec, Agent.tmpVec, 1 / dsq[i]);
+			if (agents.length === 0) {
+				return Agent.avgVec;
 			}
-			vec2.add(Agent.avgVec, Agent.avgVec, Agent.tmpVec);
-		});
 
-		vec2.scale(Agent.avgVec, Agent.avgVec, 1 / agents.length);
-		this.limitAvgForce(Agent.avgVec);
+			for (let i = 0; i < agents.length; i++) {
+				const a = agents[i];
+				vec2.subtract(Agent.tmpVec, this.position, a.position);
+				if (dsq[i] > 0) {
+					vec2.scale(Agent.tmpVec, Agent.tmpVec, 1 / dsq[i]);
+				}
+				vec2.add(Agent.avgVec, Agent.avgVec, Agent.tmpVec);
+			}
 
-		return Agent.avgVec;
-	}
+			vec2.scale(Agent.avgVec, Agent.avgVec, 1 / agents.length);
+			this.limitAvgForce(Agent.avgVec);
+
+			return Agent.avgVec;
+		}
 
 	cohesion(agents) {
 		vec2.set(Agent.avgVec, 0, 0);
@@ -146,10 +150,40 @@ class Agent {
 		vec2.add(this.acceleration, this.acceleration, Agent.tmpVec);
 
 		// Add mouse avoidance
-		if (isMouseInCanvas) {
-			const mouseAvoid = this.avoidMouse();
-			vec2.add(this.acceleration, this.acceleration, mouseAvoid);
-		}
+        if (isMouseInCanvas) {
+            const mouseAvoid = this.avoidMouse();
+            vec2.add(this.acceleration, this.acceleration, mouseAvoid);
+        }
+        // SVG path attractor: sample points along the SVG circle
+        if (window.attractorPoints) {
+            let minD2 = Infinity;
+            let nearestX = 0, nearestY = 0;
+            const pts = window.attractorPoints;
+            for (let i = 0; i < pts.length; i++) {
+                const p = pts[i];
+                const dxp = p[0] - this.position[0];
+                const dyp = p[1] - this.position[1];
+                const d2 = dxp * dxp + dyp * dyp;
+                if (d2 < minD2) {
+                    minD2 = d2;
+                    nearestX = p[0];
+                    nearestY = p[1];
+                }
+            }
+            // spring-like pull with dead-zone
+            const dx = nearestX - this.position[0];
+            const dy = nearestY - this.position[1];
+            const dist = Math.hypot(dx, dy);
+            const band = window.attractorDeadZone || 0;
+            if (dist > band) {
+                const strength = window.attractorStrength || 0.05;
+                const ux = dx / dist;
+                const uy = dy / dist;
+                Agent.tmpVec[0] = ux * strength;
+                Agent.tmpVec[1] = uy * strength;
+                vec2.add(this.acceleration, this.acceleration, Agent.tmpVec);
+            }
+        }
 	}
 
 	avoidMouse() {
@@ -189,25 +223,38 @@ class Agent {
 
 		this.flocking();
 
-		vec2.add(this.position, this.position, this.velocity);
-		// `width` and `height` is from the index.js
-		if (this.position[0] < 0) this.position[0] += width;
-		else if (this.position[0] >= width) this.position[0] -= width;
-		if (this.position[1] < 0) this.position[1] += height;
-		else if (this.position[1] >= height) this.position[1] -= height;
-
-		subdiv.update(this);
-
+		// Apply acceleration to velocity first
 		vec2.add(this.velocity, this.velocity, this.acceleration);
+		
 		// Limit the velocity
 		const speedSq = vec2.squaredLength(this.velocity);
 		if (speedSq > maxSpeed * maxSpeed) {
 			const speed = Math.sqrt(speedSq);
 			vec2.scale(this.velocity, this.velocity, maxSpeed / speed);
 		}
+		
+		// Update position based on velocity
+		vec2.add(this.position, this.position, this.velocity);
+		
+		// `width` and `height` is from the index.js
+		// bounce off walls
+		if (this.position[0] < 0) {
+			this.position[0] = 0;
+			this.velocity[0] *= -1;
+		} else if (this.position[0] >= width) {
+			this.position[0] = width;
+			this.velocity[0] *= -1;
+		}
+		if (this.position[1] < 0) {
+			this.position[1] = 0;
+			this.velocity[1] *= -1;
+		} else if (this.position[1] >= height) {
+			this.position[1] = height;
+			this.velocity[1] *= -1;
+		}
 
+		subdiv.update(this);
 		this.show();
-
 		this.isNear = false;
 	}
 
@@ -235,8 +282,9 @@ class Agent {
 		const color = this.debug ? Agent.lineColor[sState] : this.getColor();
 
 		this.shape.clear();
-		this.shape.beginFill(color, 1);
-		this.shape.drawCircle(0, 0, 4);
+			// Base radius now 2 (half size)
+			this.shape.beginFill(color, 1);
+			this.shape.drawCircle(0, 0, 2);
 		this.shape.endFill();
 
 		if (this.debug) {

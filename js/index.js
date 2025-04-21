@@ -16,16 +16,16 @@ const width = window.innerWidth;
 const height = window.innerHeight;
 const flock = [];
 const flockPool = [];
-// Agent count
-let count = 2500;
+// Agent count (doubled to 5000 for more boids)
+let count = 3000;
 const maxCount = 10000;
 // Maximum number which is used for one agent to steer to.
-const maxFlockCount = 100;
+const maxFlockCount = 3;
 
 // Also good for speed up things, if we reduce the radius
-const perceptionRadius = 80;
+const perceptionRadius = 5;
 const maxForce = 0.2;
-const maxSpeed = 3;
+const maxSpeed = 2.5;
 
 let alignSlider, cohesionSlider, separationSlider;
 let alignValue, cohesionValue, separationValue;
@@ -48,23 +48,26 @@ function random(min = 0, max = 1) {
 }
 
 
-//Create a Pixi Application
+// Create a Pixi Application (background transparent to show CSS gradient)
 const app = new PIXI.Application({
-	width: window.innerWidth,
-	height: window.innerHeight,
-	antialias: true,
-	transparent: false,
-	resolution: window.devicePixelRatio || 1,
-	autoDensity: true,
-	backgroundColor: 0x1C1C1F
+    width: window.innerWidth,
+    height: window.innerHeight,
+    antialias: true,
+    transparent: true,
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true,
 });
+// Limit ticker to 60 FPS to avoid super-high refresh rates
+app.ticker.maxFPS = 60;
 
 //Add the canvas that Pixi automatically created for you to the HTML document
+// Add the canvas to the HTML document
 document.body.appendChild(app.view);
-// Pre-generate boid texture from a white circle and set up optimized container
+// Pre-generate boid texture as a white triangle arrow and set up optimized container
 const gfx = new PIXI.Graphics();
 gfx.beginFill(0xffffff);
-gfx.drawCircle(0, 0, 4);
+// Draw a small circle for each boid (2px radius)
+gfx.drawCircle(0, 0, 2);
 gfx.endFill();
 const boidTex = app.renderer.generateTexture(gfx);
 
@@ -83,33 +86,58 @@ for (let i = 0; i < maxCount; i++) {
 }
 
 updateCount(count);
+// Sample (or re-sample) points from SVG path for boid attractor
+const svgAttractorEl = document.getElementById('attractorPath');
+if (svgAttractorEl) {
+    // store global settings
+    window.attractorStrength = window.attractorStrength || 0.05;
+    window.attractorDeadZone = window.attractorDeadZone || 30;
+    window.attractorSampleCount = window.attractorSampleCount || 100;
 
-let aSliderValue = 1;
-let sSliderValue = 1.3;
-let cSliderValue = 0.8;
+    // function to (re)compute attractorPoints
+    function updateAttractor() {
+        const totalLen = svgAttractorEl.getTotalLength();
+        const n = window.attractorSampleCount;
+        const pts = [];
+        for (let i = 0; i < n; i++) {
+            const pt = svgAttractorEl.getPointAtLength((i / n) * totalLen);
+            pts.push([pt.x, pt.y]);
+        }
+        window.attractorPoints = pts;
+    }
+    // initial sampling
+    updateAttractor();
+    // watch for attribute changes (e.g. r, cx, cy) to resample
+    const mo = new MutationObserver(muts => {
+        for (let m of muts) {
+            if (['r','cx','cy'].includes(m.attributeName)) {
+                updateAttractor();
+                break;
+            }
+        }
+    });
+    mo.observe(svgAttractorEl, { attributes: true });
+    // also resample on window resize (in case percentages change)
+    window.addEventListener('resize', updateAttractor);
+    // hook up UI sliders to adjust parameters dynamically
+    const radiusSlider = document.getElementById('attractorRadius');
+    const radiusValueEl = document.getElementById('radiusValue');
+    if (radiusSlider) {
+        radiusSlider.addEventListener('input', () => {
+            const v = radiusSlider.value;
+            svgAttractorEl.setAttribute('r', v + '%');
+            if (radiusValueEl) radiusValueEl.textContent = v + '%';
+        });
+    }
+}
+
+// Fixed values for sliders since UI elements were removed for performance
+const aSliderValue = 1;     // Alignment
+const sSliderValue = 1.3;   // Separation 
+const cSliderValue = 0.8;   // Cohesion
 
 // UI - start =========
-//createDiv('Alignment:', 'sliderLabel');
-//alignSlider = createSlider(0, 5, aSliderValue, 0.1, 'slider');
-//alignSlider.oninput = () => dispaySliderValue(alignSlider, alignValue);
-//alignValue = createDiv(aSliderValue, 'sliderValue');
-
-//createDiv('Cohesion:', 'sliderLabel');
-//cohesionSlider = createSlider(0, 5, cSliderValue, 0.1, 'slider');
-//cohesionSlider.oninput = () => dispaySliderValue(cohesionSlider, cohesionValue);
-//cohesionValue = createDiv(cSliderValue, 'sliderValue');
-
-//createDiv('Separation:', 'sliderLabel');
-//separationSlider = createSlider(0, 5, sSliderValue, 0.1, 'slider');
-//separationSlider.oninput = () => dispaySliderValue(separationSlider, separationValue);
-//separationValue = createDiv(sSliderValue, 'sliderValue');
-
-//const dbgCheckbox = createCheckbox('Debug', DEBUG, 'checkbox');
-//dbgCheckbox.changed(() => DEBUG = dbgCheckbox.checked());
-
-//const accCheckbox = createCheckbox('Accurate', ACCURATE, 'checkbox');
-//accCheckbox.changed(() => ACCURATE = accCheckbox.checked());
-
+// UI has been removed for performance optimization
 // UI - end ==========
 
 // Add mouse move listener
@@ -154,15 +182,17 @@ function updateCount(c) {
 const deltaVec = vec2.create();
 
 function gameLoop(delta) {
-	vec2.set(deltaVec, delta, delta);
+	// Normalize delta to ensure consistent animation speed
+	vec2.set(deltaVec, delta / 60, delta / 60);
+	
+	// Update each agent in the flock
+	for (let i = 0; i < flock.length; i++) {
+		flock[i].update(deltaVec);
+	}
 
-	flock.forEach(agent => {
-		agent.update(deltaVec);
-	});
-
-	// DEBUG
-	subdiv.debugGrid();
+	// DEBUG visualization (only when enabled)
 	if (DEBUG) {
+		subdiv.debugGrid();
 		subdiv.getNearItems(flock[0], true);
-	} 
+	}
 }
